@@ -19,5 +19,6 @@ Greenfield. See [`docs/`](docs/) for the design and the actionable build order.
 
 Permissive (MIT or Apache-2.0 — TBD before first public release). This project
 is clean-room and **does not derive from MRzero/MRtwin** (AGPL-3.0 +
-non-commercial EULA). Pulseq and pulseq-rs are MIT and may be vendored with
-attribution.
+non-commercial EULA). The `.seq` parser in [`crates/pulseq-parse`](crates/pulseq-parse)
+is a fork of the MIT-licensed `pulseq-rs`, now owned and developed here; MIT
+attribution is retained in that crate's `LICENSE` and `NOTICE`.
