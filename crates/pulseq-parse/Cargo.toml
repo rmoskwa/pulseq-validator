@@ -1,0 +1,26 @@
+# pulseq-parse — this repo's Pulseq `.seq` parser.
+#
+# Originally forked from pulseq-rs @ 865a890 (MIT; see NOTICE/LICENSE) and now
+# developed independently as part of the validator — we own it from here and do
+# not track upstream. It already carries local changes (e.g. unsupported-rotation
+# now returns a recoverable error instead of panicking) with more to come.
+#
+# Lean copy: parser library only (raw / seq / int). The upstream `viewer`
+# feature, its binary, and its optional deps (anyhow/clap/maud/open) were dropped.
+[package]
+name = "pulseq-parse"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"            # derives from pulseq-rs (MIT); see NOTICE
+
+[dependencies]
+num-complex = "0.4"
+thiserror = "2.0.18"
+winnow = "1.0.2"
+
+[lints.clippy]
+unwrap_used             = "warn"
+expect_used             = "warn"
+panic                   = "warn"
+indexing_slicing        = "warn"
+# arithmetic_side_effects = "warn"
