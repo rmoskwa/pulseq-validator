@@ -1,0 +1,9 @@
+[package]
+name = "seq-validate-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Engine library for the Pulseq .seq validator: a stable interpreted IR over the pulseq-parse parser."
+
+[dependencies]
+pulseq-parse = { path = "../pulseq-parse" }
