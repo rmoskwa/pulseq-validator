@@ -11,7 +11,8 @@ pulsepal harness and mr-zero are **executable references, not code to copy**.
 - **mr-zero / MRtwin**: AGPL-3.0 **and** a non-commercial EULA. Off-limits to
   derive from — including the future v2 simulator, which must be re-derived
   from physics literature, not their source.
-- **Pulseq core / pulseq-rs**: MIT. Safe to vendor with attribution.
+- **Pulseq core / pulseq-rs**: MIT. Safe to fork with attribution — we forked
+  `pulseq-rs` into `crates/pulseq-parse` (owned/developed here, NOTICE retained).
 - **pulsepal harness**: our own code; port its logic freely.
 
 Released under a **permissive license (MIT or Apache-2.0)**.
@@ -39,10 +40,11 @@ not a failure.
 
 ## Architecture
 
-- **Parser / IR**: vendor `pulseq-rs` into the repo and extend it to Pulseq
-  **v1.5.1** (the version of the example file). Use its `raw` (faithful event
-  tables) and `int` (interpreted: absolute timing + rotations + decompressed
-  shapes) layers. Checks target the interpreted layer.
+- **Parser / IR**: fork `pulseq-rs` into the repo as `crates/pulseq-parse`,
+  owned and developed here. It already supports Pulseq **v1.5.1** (the version of
+  the example file). Use its `raw` (faithful event tables) and `interp`
+  (interpreted: absolute timing + rotations + decompressed shapes) layers. Checks
+  target the interpreted layer.
 - **Monolith core now**, but every check is a **discrete unit** so the plugin
   boundary can be extracted later, once 2–3 real specialized pipelines
   (diffusion, elastography, non-Cartesian) reveal the right seams.
@@ -76,7 +78,7 @@ simulator must be re-derived from physics literature — never from mr-zero.
 
 | Step | Doc | Summary |
 |------|-----|---------|
-| 1 | [01-vendor-parser.md](01-vendor-parser.md) | Vendor pulseq-rs, extend to v1.5.1, parse the example file |
+| 1 | [01-vendor-parser.md](01-vendor-parser.md) | Fork pulseq-rs → `pulseq-parse` (owned), parse the v1.5.1 example file |
 | 2 | [02-crate-skeleton.md](02-crate-skeleton.md) | Library crate + result model + JSON schema + CLI shell |
 | 3 | [03-integrity-checks.md](03-integrity-checks.md) | Sequence-integrity checks (no scanner model) |
 | 4 | [04-derived-metrics.md](04-derived-metrics.md) | Derived metrics + the corpus/oracle test harness |
@@ -90,4 +92,3 @@ simulator must be re-derived from physics literature — never from mr-zero.
 - Exact default tolerances (seed from harness values).
 - Scanner-profile data source (seed GE from harness `emit_sys_ge.py`; need
   Siemens / generic).
-- Confirm pulseq-rs's actual license string before vendoring.
