@@ -10,7 +10,21 @@ deferred v2 goal.
 
 ## Status
 
-Greenfield. See [`docs/`](docs/) for the design and the actionable build order.
+Early. The parser/IR (Step 1) and the engine skeleton — result model, stable
+JSON contract, and CLI shell (Step 2) — are in place; the validation checks
+themselves land in Steps 3–6.
+
+```console
+$ seq-validate scan.seq            # human report
+$ seq-validate scan.seq --json     # stable JSON (schema/report-v1.schema.json)
+```
+
+The CLI runs end-to-end today and emits a well-formed (currently check-free)
+report; exit code is `0` on success, `1` on any check failure, `2` on a
+parse/harness error. `--spec` / `--profile` are accepted but inactive until the
+later steps.
+
+See [`docs/`](docs/) for the design and the actionable build order.
 
 - Design overview & decisions: [`docs/00-overview.md`](docs/00-overview.md)
 - Build steps: [`docs/01`](docs/01-vendor-parser.md) … [`docs/07`](docs/07-spec-assert-mode.md)
