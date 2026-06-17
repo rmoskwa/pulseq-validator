@@ -12,3 +12,6 @@ path = "src/main.rs"
 [dependencies]
 seq-validate-core = { path = "../seq-validate-core" }
 clap = { version = "4", features = ["derive"] }
+
+[lints]
+workspace = true

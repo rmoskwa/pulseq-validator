@@ -1,0 +1,7 @@
+# The footgun lints in [workspace.lints.clippy] (unwrap/expect/panic/indexing)
+# target the validator's runtime path. In tests those patterns are idiomatic —
+# a panicking unwrap or out-of-bounds index IS the test failing — so exempt them.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true

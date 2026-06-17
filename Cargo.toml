@@ -16,3 +16,14 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
+
+# Footgun lints, shared by every crate via `lints.workspace = true`. These were
+# originally local to pulseq-parse (the fork); promoted here so the engine and
+# CLI are held to the same bar. All "warn" — CI turns them into errors with
+# `-D warnings` (see .github/workflows/ci.yml).
+[workspace.lints.clippy]
+unwrap_used      = "warn"
+expect_used      = "warn"
+panic            = "warn"
+indexing_slicing = "warn"
+# arithmetic_side_effects = "warn"

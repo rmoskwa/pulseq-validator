@@ -18,9 +18,5 @@ num-complex = "0.4"
 thiserror = "2.0.18"
 winnow = "1.0.2"
 
-[lints.clippy]
-unwrap_used             = "warn"
-expect_used             = "warn"
-panic                   = "warn"
-indexing_slicing        = "warn"
-# arithmetic_side_effects = "warn"
+[lints]
+workspace = true
