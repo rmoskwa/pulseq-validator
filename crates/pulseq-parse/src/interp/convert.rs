@@ -162,8 +162,7 @@ pub fn convert(
             transform,
             seq.time_raster.grad,
             &mut shapes,
-            block.id,
-        )?;
+        );
 
         blocks.push(super::Block {
             duration,
@@ -293,10 +292,14 @@ type GradAxes = (
 
 /// Applies the FOV transform (scale + rotation) across all three gradient
 /// axes at once. With identity rotation each output axis is independent and
-/// the result matches per-axis scaling. With a non-identity rotation every
-/// present input must share the same `interp::Shape` Arc (after `ShapeLib`
-/// lookup) and the same `delay`; otherwise we error with `UnsupportedRotation`.
-/// `None` axes can become `Some` if rotation projects onto them.
+/// the result matches per-axis scaling. With a non-identity rotation there are
+/// two cases: if every present input shares the same `interp::Shape` Arc (after
+/// `ShapeLib` lookup) and the same `delay`, the rotation reduces to a matrix on
+/// the scalar amplitudes against that one shared shape (the common PROPELLER /
+/// rotated-spoke case, which keeps the Arc shared); otherwise the axes are
+/// resampled onto a common breakpoint grid and mixed per sample (a rotated
+/// readout combined with a differently-shaped blip on another axis — e.g.
+/// stack-of-stars). `None` axes can become `Some` if rotation projects onto them.
 fn transform_grad(
     gx: Option<&model::Gradient>,
     gy: Option<&model::Gradient>,
@@ -304,8 +307,7 @@ fn transform_grad(
     transform: Transform,
     grad_raster: f64,
     shapes: &mut ShapeLib,
-    block_id: u32,
-) -> Result<GradAxes, InterpreterError> {
+) -> GradAxes {
     let lookups: [Option<GradLookup>; 3] = [
         gx.map(|g| lookup_grad(g, grad_raster, shapes)),
         gy.map(|g| lookup_grad(g, grad_raster, shapes)),
@@ -326,51 +328,123 @@ fn transform_grad(
             })
         };
         let [lx, ly, lz] = lookups;
-        return Ok((emit(lx), emit(ly), emit(lz)));
+        return (emit(lx), emit(ly), emit(lz));
     }
 
     // Pick the first present axis as the reference. If nothing is present
     // there's no gradient — rotation has nothing to project from.
     let Some((_, ref_delay, ref_shape)) = lookups.iter().find_map(|opt| opt.as_ref()).cloned()
     else {
-        return Ok((None, None, None));
+        return (None, None, None);
     };
 
-    // Every other present axis must agree on shape and delay. Arc::ptr_eq
-    // catches Trap+Free mixes, mismatched trap timings, and different free
-    // shapes uniformly because ShapeLib gives the same Arc only for inputs
-    // that share both kind and parameters.
-    for opt in lookups.iter().flatten() {
-        let (_, delay, shape) = opt;
-        if *delay != ref_delay || !Arc::ptr_eq(shape, &ref_shape) {
-            return Err(InterpreterError::UnsupportedRotation { block_id });
-        }
-    }
-
-    let amps = [
-        lookups[0].as_ref().map_or(0.0, |(a, _, _)| *a),
-        lookups[1].as_ref().map_or(0.0, |(a, _, _)| *a),
-        lookups[2].as_ref().map_or(0.0, |(a, _, _)| *a),
-    ];
     let m = transform.to_grad_transform();
-    let out = [
-        m[0][0] * amps[0] + m[0][1] * amps[1] + m[0][2] * amps[2],
-        m[1][0] * amps[0] + m[1][1] * amps[1] + m[1][2] * amps[2],
-        m[2][0] * amps[0] + m[2][1] * amps[1] + m[2][2] * amps[2],
-    ];
 
-    let emit = |amp: f64| {
-        if amp == 0.0 {
-            None
-        } else {
-            Some(super::Gradient {
+    // Fast path: every present axis shares the reference shape and delay, so the
+    // rotation is just a matrix on the scalar amplitudes against one shared shape
+    // (a PROPELLER blade / radial spoke built from a single canonical waveform).
+    // Arc::ptr_eq is exact because ShapeLib hands out the same Arc only for inputs
+    // that match in both kind and parameters. Keeps the Arc shared — no resample.
+    let shared = lookups
+        .iter()
+        .flatten()
+        .all(|(_, delay, shape)| *delay == ref_delay && Arc::ptr_eq(shape, &ref_shape));
+    if shared {
+        let amps = [
+            lookups[0].as_ref().map_or(0.0, |(a, _, _)| *a),
+            lookups[1].as_ref().map_or(0.0, |(a, _, _)| *a),
+            lookups[2].as_ref().map_or(0.0, |(a, _, _)| *a),
+        ];
+        let out = [
+            m[0][0] * amps[0] + m[0][1] * amps[1] + m[0][2] * amps[2],
+            m[1][0] * amps[0] + m[1][1] * amps[1] + m[1][2] * amps[2],
+            m[2][0] * amps[0] + m[2][1] * amps[1] + m[2][2] * amps[2],
+        ];
+        let emit = |amp: f64| {
+            (amp != 0.0).then(|| super::Gradient {
                 amp,
                 delay: ref_delay,
                 shape: ref_shape.clone(),
             })
-        }
+        };
+        return (emit(out[0]), emit(out[1]), emit(out[2]));
+    }
+
+    // General path: the present axes differ in shape and/or delay (e.g. a rotated
+    // readout combined with a differently-shaped partition/slice blip on another
+    // axis — stack-of-stars). Resample every present axis onto the shared
+    // breakpoint grid and mix per sample through the transform.
+    rotate_resample(&lookups, m)
+}
+
+/// Physical value `[Hz/m]` of one resolved input axis at block-relative time
+/// `t` `[s]`: `amp · shape(t − delay)` inside the gradient's active window,
+/// `0` outside it. Used by [`rotate_resample`] to evaluate each axis on a shared
+/// time grid before mixing.
+fn axis_value(lookup: &Option<GradLookup>, t: f64) -> f64 {
+    let Some((amp, delay, shape)) = lookup else {
+        return 0.0;
     };
-    Ok((emit(out[0]), emit(out[1]), emit(out[2])))
+    let local = t - *delay;
+    if local < 0.0 || local > shape.duration {
+        0.0
+    } else {
+        *amp * shape.interpolate(local)
+    }
+}
+
+/// Resamples the present input axes onto their shared breakpoint grid and applies
+/// the gradient transform `m` per sample, returning one interpreted gradient per
+/// output axis. The grid is the union of every present axis's sample times (each
+/// offset by its own `delay`) plus the active-window boundaries, so each input is
+/// piecewise-linear between adjacent grid points and the per-sample mix is exact.
+/// Each output gradient folds the (already physical, `Hz/m`) waveform into its
+/// `shape` with `amp = 1.0`; an output axis that is identically zero is `None`.
+fn rotate_resample(lookups: &[Option<GradLookup>; 3], m: [[f64; 3]; 3]) -> GradAxes {
+    let mut grid: Vec<f64> = Vec::new();
+    for (_, delay, shape) in lookups.iter().flatten() {
+        grid.push(*delay);
+        for &t in &shape.time {
+            grid.push(delay + t);
+        }
+        grid.push(delay + shape.duration);
+    }
+    grid.sort_by(f64::total_cmp);
+    grid.dedup_by(|a, b| (*a - *b).abs() <= 1e-12);
+
+    // The caller guarantees at least one present axis, so the grid is non-empty.
+    let t0 = grid.first().copied().unwrap_or(0.0);
+    let duration = grid.last().copied().unwrap_or(0.0) - t0;
+    let times: Vec<f64> = grid.iter().map(|&t| t - t0).collect();
+
+    let mut amps: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for &gt in &grid {
+        let vin = [
+            axis_value(&lookups[0], gt),
+            axis_value(&lookups[1], gt),
+            axis_value(&lookups[2], gt),
+        ];
+        for (out, mrow) in amps.iter_mut().zip(m.iter()) {
+            out.push(mrow[0] * vin[0] + mrow[1] * vin[1] + mrow[2] * vin[2]);
+        }
+    }
+
+    let [ax, ay, az] = amps;
+    let emit = |a: Vec<f64>| -> Option<super::Gradient> {
+        if a.iter().all(|&v| v == 0.0) {
+            return None;
+        }
+        Some(super::Gradient {
+            amp: 1.0,
+            delay: t0,
+            shape: Arc::new(super::Shape {
+                time: times.clone(),
+                amp: a,
+                duration,
+            }),
+        })
+    };
+    (emit(ax), emit(ay), emit(az))
 }
 
 fn convert_adc(
@@ -551,5 +625,107 @@ impl LabelState {
             C::Acq => &mut self.adc_labels.acq,
             C::Trid => &mut self.block_labels.trid,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)]
+    use super::*;
+
+    fn shape(time: Vec<f64>, amp: Vec<f64>, duration: f64) -> Arc<crate::interp::Shape<f64>> {
+        Arc::new(crate::interp::Shape {
+            time,
+            amp,
+            duration,
+        })
+    }
+
+    /// Zeroth moment of a resampled output gradient over its active extent, with
+    /// the IR's hold-flat-before-first/after-last convention (mirrors
+    /// `ir::integrate_shape_ticks`). Used to check that `rotate_resample`'s output
+    /// integrates to the analytic mix.
+    fn moment(g: &crate::interp::Gradient) -> f64 {
+        let (t, a) = (&g.shape.time, &g.shape.amp);
+        let n = t.len();
+        let mut acc = a[0] * t[0];
+        for i in 1..n {
+            acc += (a[i - 1] + a[i]) * 0.5 * (t[i] - t[i - 1]);
+        }
+        acc += a[n - 1] * (g.shape.duration - t[n - 1]);
+        g.amp * acc
+    }
+
+    /// `axis_value` zeros outside the active window and otherwise evaluates
+    /// `amp · shape(t − delay)` with the IR hold convention: flat before the first
+    /// sample, linear between, flat after the last, then a hard cut at the
+    /// active-window end.
+    #[test]
+    fn axis_value_holds_inside_and_zeros_outside() {
+        // amp 2, delay 0; shape held at 4 on [0,1], 4→8 on [1,2], held at 8 on [2,3].
+        let lk = Some((2.0, 0.0, shape(vec![1.0, 2.0], vec![4.0, 8.0], 3.0)));
+        assert_eq!(axis_value(&lk, -0.1), 0.0); // before the window
+        assert_eq!(axis_value(&lk, 0.0), 8.0); // held leading (2·4)
+        assert_eq!(axis_value(&lk, 1.5), 12.0); // linear interior (2·6)
+        assert_eq!(axis_value(&lk, 2.5), 16.0); // held trailing (2·8)
+        assert_eq!(axis_value(&lk, 3.0), 16.0); // at the active-window end
+        assert_eq!(axis_value(&lk, 3.1), 0.0); // past the window
+        let absent: Option<GradLookup> = None;
+        assert_eq!(axis_value(&absent, 1.0), 0.0); // an absent axis
+    }
+
+    /// A 90°-about-z rotation mixing a readout-shaped x trapezoid with a
+    /// differently-shaped, differently-delayed y triangle — the general path: the
+    /// axes share no Arc, so they are resampled onto their union breakpoint grid
+    /// and mixed per sample. Two analytic invariants: (1) the zeroth moment
+    /// commutes with the transform, `∫(M·g) = M·∫g` (exact here because both
+    /// inputs start and end at zero), and (2) the mixed waveform is reproduced
+    /// pointwise.
+    #[test]
+    fn rotate_resample_mixes_differently_shaped_axes() {
+        // R_z(90°) as a gradient transform: out_x = −in_y, out_y = in_x, out_z = in_z.
+        let m = [[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]];
+
+        // gx: unit trapezoid (area 2) × amp 2 ⇒ ∫ = 4; delay 0, window [0,3].
+        let gx = (
+            2.0,
+            0.0,
+            shape(vec![0.0, 1.0, 2.0, 3.0], vec![0.0, 1.0, 1.0, 0.0], 3.0),
+        );
+        // gy: triangle (area 1) × amp 3 ⇒ ∫ = 3; delay 0.5, window [0.5,2.5].
+        let gy = (
+            3.0,
+            0.5,
+            shape(vec![0.0, 1.0, 2.0], vec![0.0, 1.0, 0.0], 2.0),
+        );
+        let lookups = [Some(gx), Some(gy), None];
+
+        let (ox, oy, oz) = rotate_resample(&lookups, m);
+        let ox = ox.expect("out x is non-zero");
+        let oy = oy.expect("out y is non-zero");
+        assert!(oz.is_none(), "no z input projects to z under R_z(90°)");
+
+        // (1) Moments: ∫g = [4, 3, 0] ⇒ M·∫g = [−3, 4, 0].
+        assert!(
+            (moment(&ox) + 3.0).abs() < 1e-12,
+            "∫(out x) = {}",
+            moment(&ox)
+        );
+        assert!(
+            (moment(&oy) - 4.0).abs() < 1e-12,
+            "∫(out y) = {}",
+            moment(&oy)
+        );
+
+        // The output spans the union window and folds the physical waveform into
+        // the shape (amp = 1).
+        assert_eq!(ox.delay, 0.0);
+        assert!((ox.shape.duration - 3.0).abs() < 1e-12);
+        assert_eq!(ox.amp, 1.0);
+
+        // (2) Pointwise at t = 1.0 (a grid breakpoint): in = [2·1, 3·0.5, 0] =
+        //     [2, 1.5, 0] ⇒ out_x = −1.5, out_y = 2.0.
+        assert!((ox.shape.interpolate(1.0) + 1.5).abs() < 1e-12);
+        assert!((oy.shape.interpolate(1.0) - 2.0).abs() < 1e-12);
     }
 }

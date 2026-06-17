@@ -41,7 +41,9 @@ pub(crate) fn checks() -> Vec<Box<dyn Check>> {
 
 /// Minimum nominal flip [deg] for an RF event to count as a slice excitation.
 /// Excludes a near-zero-flip stray/spoiling pulse the harness also ignores.
-const MIN_EXCITATION_FLIP_DEG: f64 = 1.0;
+/// Shared with the trajectory gate (`crate::trajectory`) so both modules agree on
+/// what an excitation is.
+pub(crate) const MIN_EXCITATION_FLIP_DEG: f64 = 1.0;
 
 /// Grouping precision for excitation frequency offsets: offsets are bucketed to
 /// the nearest milli-hertz before counting distinct slices / pairing TR
@@ -57,7 +59,9 @@ const FREQ_BUCKET_HZ: f64 = 1e-3;
 /// `delay + center` (Pulseq's `mr.calcRfCenter` convention; the file's `center`
 /// column is measured from the waveform start, the delay shifts it onto the
 /// block clock). Our parser targets 1.5.x, where `center` is always present.
-fn rf_center_s(rf: &Rf) -> f64 {
+/// Shared with the trajectory gate (`crate::trajectory`), which resets k-space at
+/// each excitation's RF centre.
+pub(crate) fn rf_center_s(rf: &Rf) -> f64 {
     rf.delay + rf.center
 }
 
@@ -69,8 +73,9 @@ fn adc_center_s(adc: &Adc) -> f64 {
 
 /// Whether an RF `use` tag marks the pulse as something *other* than the slice
 /// excitation. An untagged (`Undefined`/`Other`) pulse is treated as a possible
-/// excitation, gated by its flip in [`is_excitation`].
-fn is_non_excitation_use(use_: RfUse) -> bool {
+/// excitation, gated by its flip in [`is_excitation`]. Shared with the trajectory
+/// gate (`crate::trajectory`).
+pub(crate) fn is_non_excitation_use(use_: RfUse) -> bool {
     matches!(
         use_,
         RfUse::Refocusing | RfUse::Inversion | RfUse::Saturation | RfUse::Preparation
@@ -80,8 +85,10 @@ fn is_non_excitation_use(use_: RfUse) -> bool {
 /// Nominal small-tip flip angle [deg] = `360·|∫ B1 dt|`, with `B1 = amp·shape`.
 /// The integral is taken over the pulse's full active extent (see [`integrate`]),
 /// so a sparse boundary-sampled shape (e.g. a two-point block pulse) and a dense
-/// centred sinc both come out right.
-fn flip_deg(rf: &Rf) -> f64 {
+/// centred sinc both come out right. Shared with the trajectory gate
+/// (`crate::trajectory`), which uses it to tell an excitation from a refocusing /
+/// preparation pulse when deciding where to reset k-space.
+pub(crate) fn flip_deg(rf: &Rf) -> f64 {
     rf.amp * integrate(&rf.shape).norm() * 360.0
 }
 

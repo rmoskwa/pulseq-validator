@@ -31,13 +31,19 @@ Divergence from the fork point
 ------------------------------
 Local changes made since 865a890 (this list will grow as the crate evolves):
 
-  - src/interp/convert.rs + src/error.rs — `transform_grad` previously called
-    `unimplemented!()` (a PANIC) when a rotation extension rotates gradient axes
-    with different shapes/delays (e.g. stack-of-stars). Converted to a typed,
-    recoverable error: new `InterpreterError::UnsupportedRotation { block_id }`;
-    `transform_grad` now returns `Result` and `convert()` propagates it with `?`.
-    A validator must not panic on input. The real fix (resample axes onto a
-    common time grid) is planned for Step 5 (trajectory).
+  - src/interp/convert.rs + src/error.rs — rotation of gradient axes with
+    different shapes/delays (e.g. stack-of-stars). Upstream `transform_grad`
+    called `unimplemented!()` (a PANIC) for this case. This was first converted
+    to a typed recoverable error (`InterpreterError::UnsupportedRotation`), then
+    in Step 5 (trajectory) replaced with the real fix: `transform_grad` now
+    resamples every present axis onto the union of their breakpoints, mixes the
+    samples through the 3×3 gradient transform, and emits one resampled waveform
+    per output axis (`rotate_resample` / `axis_value`). The single-shared-shape
+    case (PROPELLER blades / radial spokes from one canonical waveform) keeps its
+    fast amplitude-only path. With the general path covering every rotation,
+    `transform_grad` is infallible again (no `Result`), and the
+    `UnsupportedRotation` variant was removed. Verified: every bundled fixture —
+    including `sos-liver.seq` — now interprets cleanly.
 
   - Pre-commit trim of orphaned vendor code (nothing in the workspace called
     these): removed `model::Gradient::delay()`, the unused `interp::Shape::new`
