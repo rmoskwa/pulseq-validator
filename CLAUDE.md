@@ -56,6 +56,18 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Verify Before Done
+
+**After completing a coding task, run these and make them pass:**
+
+```
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+If `fmt --check` fails, fix it with `cargo fmt --all`. Don't report a task complete until all three are green.
+
 ## Repository layout
 
 ```
