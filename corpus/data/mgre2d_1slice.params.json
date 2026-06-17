@@ -1,0 +1,10 @@
+{
+  "family": "mgre2d",
+  "flip_deg": 20,
+  "n_slices": 1,
+  "tr_s": null,
+  "te_s": 0.005,
+  "echo_spacing_s": 0.0016400000000000002,
+  "name": "mgre2d_1slice",
+  "scan_time_s": 3.185280000000001
+}

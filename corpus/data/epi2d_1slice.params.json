@@ -1,0 +1,10 @@
+{
+  "family": "epi2d",
+  "flip_deg": 90,
+  "n_slices": 1,
+  "tr_s": null,
+  "te_s": null,
+  "echo_spacing_s": 0.00055000000000000014,
+  "name": "epi2d_1slice",
+  "scan_time_s": 0.021510000000000022
+}

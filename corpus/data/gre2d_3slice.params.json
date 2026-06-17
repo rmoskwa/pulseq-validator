@@ -1,0 +1,10 @@
+{
+  "family": "gre2d",
+  "flip_deg": 15,
+  "n_slices": 3,
+  "tr_s": 0.05,
+  "te_s": 0.01,
+  "echo_spacing_s": null,
+  "name": "gre2d_3slice",
+  "scan_time_s": 4.8000000000000043
+}
