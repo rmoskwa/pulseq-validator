@@ -3,10 +3,7 @@
 Parses [Pulseq](https://pulseq.github.io/) `.seq` files and lowers them into a
 representation that mirrors what a scanner actually executes.
 
-This crate is a **fork of `pulseq-rs`** (MIT, by Jonathan Endres), copied at
-commit `865a890` and now owned and developed inside the pulseq-validator. See
-[`NOTICE`](NOTICE) for the full lineage, MIT attribution, and the log of local
-changes since the fork point; [`LICENSE`](LICENSE) holds the original copyright.
+This crate is a **fork of `pulseq-rs`** (MIT, by Jonathan Endres), now owned and developed inside the pulseq-validator.
 
 ## Crate structure
 
@@ -64,16 +61,3 @@ for block in &int_seq.blocks {
 }
 # Ok::<(), pulseq_parse::Error>(())
 ```
-
-## Local changes since the fork
-
-Tracked in [`NOTICE`](NOTICE). In short: the HTML viewer binary and its
-`viewer` feature/deps were dropped (parser library only); the interpreter's
-unsupported-rotation case now returns a recoverable error instead of panicking;
-and the multi-version machinery was collapsed to **Pulseq 1.5 only** (the
-1.2&ndash;1.4 grammars, Delay events, and the pre-1.5 gradient-boundary
-back-fill were removed, since this validator targets 1.5+).
-
-The pulseq-rs pre-fork changelog (through the 0.2.0 fork point) lives in the
-[upstream repo](https://github.com/pulseq-frame/pulseq-rs); it is not duplicated
-here.

@@ -1,7 +1,7 @@
 # Oracle corpus
 
 Small Pulseq **1.5.1** sequences with **known generation parameters**, used to
-prove the validator's derived metrics (`docs/04-derived-metrics.md`) are correct.
+prove the validator's derived metrics are correct.
 Each sequence is checked two ways — *recover-the-inputs* and *Pulseq self-report*
 — by the Rust test `crates/seq-validate-core/tests/corpus_oracle.rs`, which runs
 on the committed artifacts. **MATLAB is not needed to run the tests**; it is only
@@ -33,8 +33,8 @@ for this family" and is skipped by the test (see the reconciliations below).
 | `se2d_1slice` | spin echo — a `use=refocusing` 180° pulse excluded from the excitation count |
 
 The bundled fixtures (`fixtures/`) cover the rotated / long-train families this
-corpus omits (FSE PROPELLER, HASTE, EPI-RS), cross-checked against the pulsepal
-harness in `tests/metrics.rs`.
+corpus omits (FSE PROPELLER, HASTE, EPI-RS); their expected metrics are pinned as
+regression baselines in `tests/metrics.rs`.
 
 ## Two deliberate reconciliations
 

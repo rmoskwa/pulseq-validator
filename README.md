@@ -1,49 +1,204 @@
 # pulseq-validator
 
-A Rust-first, clean-room validator for Pulseq `*.seq` files. Supply a `.seq`
-file, get a quantitative report of its imaging metrics (TE, TR, FOV, matrix,
-k-space trajectory) plus hardware-safety and integrity checks —
-optionally asserted against an expected-value spec for CI gating.
+A Rust-first validator for [Pulseq](https://pulseq.github.io/) `*.seq` files.
+Hand it a `.seq` file and it returns a quantitative report of the sequence's
+imaging metrics (TE, TR, flip angle, FOV, matrix, k-space trajectory) together
+with hardware-safety and integrity checks — optionally asserted against an
+expected-value spec for CI gating.
 
-v1 is **static/analytic only** (no Bloch simulation). A physics simulator is a
-deferred v2 goal.
+Validation is **static and analytic** (no Bloch simulation): every number comes
+from the sequence's own gradients, RF, ADC, and timing, so a report is fast and
+deterministic.
 
-## Status
+## What it checks
 
-All seven build steps are in place. The parser/IR (Step 1), the engine skeleton —
-result model, stable JSON contract, and CLI shell (Step 2) — sequence integrity
-(Step 3: raster alignment, timing/duration, event legality, version/signature,
-definitions), the derived imaging metrics (Step 4: TR, effective TE, flip angle,
-n_slices, echo spacing, scan time, with a MATLAB-generated oracle corpus), the
-k-space trajectory gate with dual-witness geometry (Step 5: `k = ∫G·dt` per-axis
-extent / coverage / 2D-vs-3D, plus FOV/matrix from both the Cartesian area-algebra
-and the trajectory, reconciled), the scanner-profile hardware/safety checks
-(Step 6: gradient/slew/B1/dwell/dead-time and approximate PNS against bundled
-profiles), and the optional expected-spec assert mode (Step 7) are all live.
+The validator runs four families of checks:
+
+1. **Derived imaging metrics** — effective TE (the echo crossing k-space
+   centre), TR, flip angle, slice count, echo spacing, in-plane resolution, and
+   total scan time.
+2. **K-space trajectory** — integrates `k = ∫G·dt` per axis to report extent,
+   coverage, sampling uniformity, and a 2D-vs-3D classification. It is
+   dimension-general: it follows permuted / non-Cartesian readouts and applies
+   per-block rotation extensions.
+3. **Hardware / safety limits** — gradient amplitude, slew rate, ADC dwell vs.
+   raster, B1/duration, dead-time, and an approximate PNS estimate, compared
+   against a selectable **scanner profile**.
+4. **Sequence integrity** — raster alignment, block/timing consistency,
+   transmit/receive overlaps, and version/signature sanity.
+
+Geometry (FOV and matrix) is reported by **two independent witnesses**: a
+parameter-algebra calculation that applies only when a Cartesian model holds, and
+the trajectory measurement that applies generally. When the Cartesian model does
+not hold the algebra reports `skip` (a first-class, non-failing result) and the
+trajectory witness carries the geometry.
+
+## Installing
+
+The project is a standard Cargo workspace; building from source needs a recent
+stable Rust toolchain ([rustup](https://rustup.rs/)).
 
 ```console
-$ seq-validate scan.seq                       # human report
-$ seq-validate scan.seq --json                # stable JSON (schema/report-v1.schema.json)
-$ seq-validate scan.seq --profile ge-premier  # + hardware/safety limits
+$ git clone <this-repo> && cd pulseq-validator
+$ cargo build --release
+```
+
+The CLI binary lands at `target/release/seq-validate`. The examples below assume
+it is on your `PATH`; otherwise run it through Cargo with
+`cargo run --release -p seq-validate -- <args>`.
+
+## Usage
+
+```console
+$ seq-validate scan.seq                       # human-readable report
+$ seq-validate scan.seq --verbose             # + each check's measured/expected data
+$ seq-validate scan.seq --json                # stable JSON (see the schema below)
+$ seq-validate scan.seq --profile ge-premier  # + hardware/safety limits for a scanner
 $ seq-validate scan.seq --spec expected.yaml  # + hard pass/fail vs an expected spec
 ```
 
-The CLI runs end-to-end, grouping integrity, derived-metric, trajectory, hardware,
-and spec-assertion results by category; exit code is `0` on success, `1` on any
-check failure (including an out-of-tolerance spec field), `2` on a parse/harness
-error. `--profile <name>` selects a bundled scanner profile (`--set field=value`
-overrides one limit); `--spec <spec.yaml>` asserts the measured metrics against an
-expected-value spec, checking only the fields it provides.
+A bundled example sequence lives in `fixtures/`, so you can try it immediately:
 
-See [`docs/`](docs/) for the design and the actionable build order.
+```console
+$ seq-validate fixtures/t1_spgr_axial_brain.seq --profile ge-premier
+```
 
-- Design overview & decisions: [`docs/00-overview.md`](docs/00-overview.md)
-- Build steps: [`docs/01`](docs/01-vendor-parser.md) … [`docs/07`](docs/07-spec-assert-mode.md)
+The report groups results by category (integrity, metrics, trajectory, hardware,
+and — when a spec is supplied — spec assertions). Each check has one of four
+statuses:
+
+| status | meaning                                                            |
+|--------|--------------------------------------------------------------------|
+| `pass` | the check held                                                     |
+| `fail` | the check was violated — the only status that fails the run       |
+| `warn` | suspicious but format-legal, or an approximate proxy               |
+| `skip` | not applicable / not measurable for this sequence                  |
+
+### Output modes
+
+The default output is a colorized human report (color is suppressed when stdout
+is not a terminal, and honors the `NO_COLOR` convention). `--verbose` appends each
+check's structured `measured`/`expected` data inline.
+
+`--json` emits a stable JSON document — the integration contract for Python or
+web consumers, who need no bindings. It conforms to the JSON Schema at
+[`crates/seq-validate-core/schema/report-v1.schema.json`](crates/seq-validate-core/schema/report-v1.schema.json);
+the `schema_version` field pins the contract and any breaking change bumps it. One
+shape covers both a successful validation and a parse/harness error.
+
+### Scanner profiles
+
+`--profile <name>` selects a bundled scanner profile that supplies the hardware
+limits. Two are shipped:
+
+- `ge-premier` — a GE Premier-class 3 T system.
+- `generic-3t` (aliases: `generic`, `default`) — a vendor-neutral 3 T profile.
+
+`--set FIELD=VALUE` overrides a single limit (repeatable), e.g.
+`--set maxGrad=45`. With no `--profile`, no spec `scanner`, and no limits embedded
+in the file's `[DEFINITIONS]`, the hardware checks `skip` — the wrong scanner is
+never silently assumed.
+
+### Expected-spec mode (CI gating)
+
+`--spec <spec.yaml>` turns the validator into a pass/fail gate: each field the
+spec provides becomes a `spec.*` check that asserts the measured value against the
+expected one, and the run exits nonzero if any asserted field is out of tolerance.
+The policy is **lenient** — only the fields you provide are checked.
+
+A spec is YAML; see [`fixtures/t1_spgr_axial_brain.spec.yaml`](fixtures/t1_spgr_axial_brain.spec.yaml)
+for a complete, passing example. Recognized fields:
+
+```yaml
+name: my-scan
+scanner: ge-premier            # selects the hardware profile (an input, not asserted)
+te_ms: 4.008
+tr_ms: 400.048
+flip_angle_deg: 80
+n_slices: 44
+matrix: [192, 192, 1]          # nominal (logical) sizes
+fov_mm: [240, 240]
+oversampling: [2, 1, 1]        # readout oversampling, divided out before comparison
+```
+
+Per-field tolerances default to sensible bands and can be set as `abs`, `rel`, or
+`exact`. Geometry honors the dual-witness rule: each axis is asserted against
+whichever witness measured it.
+
+### Exit codes
+
+| code | meaning                                                        |
+|------|----------------------------------------------------------------|
+| `0`  | success — no check failed                                      |
+| `1`  | at least one check failed (including an out-of-tolerance spec) |
+| `2`  | harness/parse error — the file could not be processed          |
+
+## How it works
+
+```
+.seq file
+   │
+   ▼
+pulseq-parse ──► interpreted IR ──► seq-validate-core ──► Report ──► human / JSON
+                  (what the            (checks +            (results
+                     scanner plays)        metrics)               + exit code)
+```
+
+- **`crates/pulseq-parse`** parses the `.seq` file and lowers it to an
+  *interpreted* representation — absolute block timing, applied rotations, and
+  decompressed shapes — i.e. what the scanner would actually play out. It targets
+  Pulseq **v1.5** (1.5.0 / 1.5.1); other versions are rejected. It is a fork of
+  the MIT-licensed `pulseq-rs`, now owned and developed here (see that crate's
+  `NOTICE` for lineage and local changes).
+- **`crates/seq-validate-core`** is the reusable engine library. It wraps the
+  interpreted IR, runs the checks, and produces the result model and stable JSON
+  report. Each check is a discrete unit registered in one place, so checks can be
+  added or extracted without touching the others.
+- **`crates/seq-validate`** is a thin CLI shell over the engine.
+
+The result model is uniform: each check yields
+`{ id, status, measured, expected?, severity, message }`, and only a `fail` drives
+a nonzero exit code.
+
+## Correctness
+
+The derived metrics are pinned against a **two-sided oracle**: a small corpus of
+sequences built with *known generation parameters* is checked both by recovering
+those inputs and by cross-checking against Pulseq's own `testReport()` measured
+independently from k-space. The corpus and its committed artifacts live in
+[`corpus/`](corpus/) and run as ordinary tests — no MATLAB is needed to run them
+(only to regenerate them). The rotated / long-train families that the corpus omits
+are covered by the bundled `fixtures/`, whose expected metrics are pinned as
+regression baselines.
+
+Run the full test suite, formatting, and lints exactly as CI does:
+
+```console
+$ cargo test --workspace
+$ cargo fmt --all -- --check
+$ cargo clippy --workspace --all-targets -- -D warnings
+```
+
+## Scope
+
+Validation is static/analytic only. Bloch/phantom simulation, GPU acceleration,
+a formal plugin boundary, and sequence-family-specific pipelines (diffusion,
+elastography, non-Cartesian) are out of scope here.
+
+## Repository layout
+
+```
+crates/pulseq-parse        .seq parser + interpreted IR (fork of pulseq-rs)
+crates/seq-validate-core   engine library: IR wrapper, checks, result model, JSON
+crates/seq-validate        the seq-validate CLI
+corpus/                    oracle corpus + MATLAB generator (provenance)
+fixtures/                  example .seq files and an example spec
+references/                the Pulseq v1.5.1 specification (PDF)
+```
 
 ## License
 
-Permissive (MIT or Apache-2.0 — TBD before first public release). This project
-is clean-room and **does not derive from MRzero/MRtwin** (AGPL-3.0 +
-non-commercial EULA). The `.seq` parser in [`crates/pulseq-parse`](crates/pulseq-parse)
-is a fork of the MIT-licensed `pulseq-rs`, now owned and developed here; MIT
-attribution is retained in that crate's `LICENSE` and `NOTICE`.
+Licensed under either of MIT or Apache-2.0, at your option. The `.seq` parser in
+[`crates/pulseq-parse`](crates/pulseq-parse) is a fork of the MIT-licensed
+`pulseq-rs`; its MIT attribution is retained in that crate's `LICENSE` and
+`NOTICE`.
