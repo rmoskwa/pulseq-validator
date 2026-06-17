@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rmoskwa/pulseq-validator/schema/report-v1.schema.json",
+  "title": "seq-validate report",
+  "description": "Stable JSON contract emitted by `seq-validate --json`. This is schema version 1; the `schema_version` field below pins it and any breaking change to the field set bumps it. A single shape covers both a successful validation (`error` null, `sequence` populated) and a harness/parse error (`error` set, `sequence` null).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "file", "error", "sequence", "results", "summary"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Version of this report schema. Pin it; a bump signals a breaking change."
+    },
+    "file": {
+      "type": "string",
+      "description": "Input .seq path, exactly as given on the CLI."
+    },
+    "error": {
+      "type": ["string", "null"],
+      "description": "Harness/parse error message, or null on success. When set, `sequence` is null and the process exit code is 2."
+    },
+    "sequence": {
+      "description": "Parsed-sequence metadata; null if and only if `error` is set.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pulseq_version", "name", "blocks", "duration_s", "parse_warnings"],
+          "properties": {
+            "pulseq_version": {
+              "type": "string",
+              "description": "Pulseq file-format version, e.g. \"1.5.1\"."
+            },
+            "name": {
+              "type": ["string", "null"],
+              "description": "The `Name` definition, or null if the file declared none."
+            },
+            "blocks": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Number of interpreted blocks."
+            },
+            "duration_s": {
+              "type": "number",
+              "description": "Total sequence duration, in seconds."
+            },
+            "parse_warnings": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Non-fatal interpreter warnings raised while lowering to the IR."
+            }
+          }
+        }
+      ]
+    },
+    "results": {
+      "type": "array",
+      "description": "Per-check results, in the order checks were run.",
+      "items": { "$ref": "#/$defs/checkResult" }
+    },
+    "summary": { "$ref": "#/$defs/summary" }
+  },
+  "$defs": {
+    "checkResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "measured", "expected", "severity", "message"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable `<category>.<name>` identifier (e.g. \"integrity.raster_alignment\"). The category prefix groups results."
+        },
+        "status": {
+          "enum": ["pass", "fail", "warn", "skip"],
+          "description": "Outcome. Only `fail` drives a nonzero exit code; `skip` is a first-class, non-failing result."
+        },
+        "measured": {
+          "description": "Observed value (any JSON type), or null if the check measured nothing."
+        },
+        "expected": {
+          "description": "Expected value (any JSON type), typically from a spec, or null when there is no expectation."
+        },
+        "severity": {
+          "enum": ["error", "warn", "info"],
+          "description": "How seriously to treat a non-pass; orthogonal to `status`, does not affect the exit code."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable explanation."
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Tally of results by status.",
+      "required": ["total", "pass", "fail", "warn", "skip"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "pass": { "type": "integer", "minimum": 0 },
+        "fail": { "type": "integer", "minimum": 0 },
+        "warn": { "type": "integer", "minimum": 0 },
+        "skip": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

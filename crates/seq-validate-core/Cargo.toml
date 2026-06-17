@@ -9,3 +9,9 @@ description = "Engine library for the Pulseq .seq validator: a stable interprete
 pulseq-parse = { path = "../pulseq-parse" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+# Validates emitted reports against the published JSON Schema (schema/report-v1.schema.json).
+# default-features off drops the HTTP/file `$ref` resolvers (and their reqwest/tokio
+# stack): our schema is self-contained (local `$defs` only).
+jsonschema = { version = "0.30", default-features = false }

@@ -6,15 +6,18 @@
 //! plugs into:
 //!
 //! - the [`result`] model — [`CheckResult`] (`status`/`severity`/`measured`/…),
-//! - the [`checks`] abstraction — a discrete [`Check`] unit + an (empty) registry.
+//! - the [`checks`] abstraction — a discrete [`Check`] unit + an (empty) registry,
+//! - the [`report`] aggregation + its **stable JSON** contract ([`Report`]).
 
 pub mod checks;
 pub mod ir;
+pub mod report;
 pub mod result;
 
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, TimeRaster, Version, raw_sections};
 
 pub use checks::{Check, CheckCtx};
+pub use report::{Report, SCHEMA_VERSION, SequenceMeta, Summary};
 pub use result::{Category, CheckResult, Severity, Status};
 
 /// The parser crate, re-exported so consumers can reach the `raw` / `model` /
