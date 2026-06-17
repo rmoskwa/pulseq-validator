@@ -12,20 +12,25 @@ pattern the later, harder checks follow.
 
 ## Tasks
 
-- [ ] **Raster alignment** — every event (RF, gradient, ADC, block duration)
+- [x] **Raster alignment** — every event (RF, gradient, ADC, block duration)
       starts/lasts on its declared raster (`GradientRasterTime`,
       `RadiofrequencyRasterTime`, `AdcRasterTime`, `BlockDurationRaster`).
-- [ ] **Block/timing consistency** — block durations are non-negative and
-      accommodate their contained events; cumulative duration matches
-      `TotalDuration` definition (within tolerance).
-- [ ] **Event overlap / legality** — no illegal overlaps (e.g. RF during ADC
-      where disallowed); referenced shape/event IDs all exist.
-- [ ] **Dead-time / ring-down sanity** — RF ring-down and ADC dead-time present
-      where the format/version requires (informational where scanner-specific).
-- [ ] **Version / signature sanity** — `[VERSION]` recognized; `[SIGNATURE]`
-      hash, if present, recomputes correctly (warn on mismatch, not fail).
-- [ ] **Definitions sanity** — required definitions present; raster times
-      positive; FOV present and positive.
+      Each event aligns to *its own* raster (verified against all fixtures: a
+      propeller RF delay sits off the gradient raster but on the RF raster, an
+      EPI ADC delay off the gradient raster but on the ADC raster).
+- [x] **Block/timing consistency** — cumulative duration matches the
+      `TotalDuration` definition (within tolerance). Non-negativity and the
+      "events fit their block" invariant are *parser-enforced* (model-layer
+      `validate()`), so a violation is a harness error, not a check.
+- [x] **Event overlap / legality** — flags simultaneous RF + ADC (transmit
+      during receive). Referenced shape/event IDs are parser-resolved, so a
+      dangling reference is a harness error before the checks run.
+- [x] **Dead-time / ring-down sanity** — scanner-specific, so reported as a
+      `skip`; the hard check lands in Step 6 against a profile.
+- [x] **Version / signature sanity** — `[VERSION]` recognized; `[SIGNATURE]`
+      md5, if present, recomputes (warn on mismatch, not fail).
+- [x] **Definitions sanity** — raster times positive; FOV present and positive
+      (missing FOV warns; required rasters' presence is parser-enforced).
 
 ## Acceptance criteria
 
