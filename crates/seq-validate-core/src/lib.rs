@@ -26,6 +26,7 @@
 
 pub mod checks;
 pub mod ir;
+pub mod measurements;
 pub mod profile;
 pub mod render;
 pub mod report;
@@ -40,6 +41,7 @@ mod trajectory;
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
 pub use checks::{Check, CheckCtx};
+pub use measurements::{Geometry, Measurements};
 pub use profile::{Pns, Profile};
 pub use render::render;
 pub use report::{Report, SCHEMA_VERSION, SequenceMeta, Summary};

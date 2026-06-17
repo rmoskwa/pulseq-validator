@@ -34,7 +34,8 @@ use std::path::Path;
 use serde_json::Value;
 use serde_yaml::{Mapping, Value as Yaml};
 
-use crate::result::{CheckResult, Status};
+use crate::measurements::Measurements;
+use crate::result::CheckResult;
 
 /// A per-field tolerance. `Abs` is an absolute band in the field's own unit,
 /// `Rel` a fraction of the expected magnitude, `Exact` strict equality (matrix
@@ -164,49 +165,49 @@ impl Spec {
             .unwrap_or_else(|| default_tolerance(field))
     }
 
-    /// Assert every provided field against the file-only check results, emitting
+    /// Assert every provided field against the typed [`Measurements`], emitting
     /// one `spec.*` [`CheckResult`] per provided field. `measured` is reused from
     /// the measured metrics/trajectory/hardware results (no re-measurement); a field whose source metric was
     /// not measured `skip`s.
-    pub fn assert(&self, results: &[CheckResult]) -> Vec<CheckResult> {
+    pub fn assert(&self, m: &Measurements) -> Vec<CheckResult> {
         let mut out = Vec::new();
 
-        // Scalar metrics: source id, unit scale (IR seconds → spec ms), expected.
+        // Scalar metrics: source id (for the message), unit scale (IR seconds →
+        // spec ms), expected.
         if let Some(e) = self.te_ms {
-            out.push(self.scalar_result("te_ms", "metrics.te", 1e3, e, results));
+            out.push(self.scalar_result("te_ms", "metrics.te", m.te_s, 1e3, e));
         }
         if let Some(e) = self.tr_ms {
-            out.push(self.scalar_result("tr_ms", "metrics.tr", 1e3, e, results));
+            out.push(self.scalar_result("tr_ms", "metrics.tr", m.tr_s, 1e3, e));
         }
         if let Some(e) = self.flip_angle_deg {
-            out.push(self.scalar_result("flip_angle_deg", "metrics.flip_angle", 1.0, e, results));
+            out.push(self.scalar_result("flip_angle_deg", "metrics.flip_angle", m.flip_deg, 1.0, e));
         }
         if let Some(e) = self.echo_spacing_ms {
             out.push(self.scalar_result(
                 "echo_spacing_ms",
                 "metrics.echo_spacing",
+                m.echo_spacing_s,
                 1e3,
                 e,
-                results,
             ));
         }
         if let Some(e) = self.n_slices {
-            out.push(self.count_result("n_slices", "metrics.n_slices", e, results));
+            out.push(self.count_result("n_slices", "metrics.n_slices", m.n_slices, e));
         }
 
         // Geometry: pick the authoritative witness once per quantity, then assert
         // each provided axis against it (oversampling divided out).
-        let (matrix_w, matrix_label) =
-            authoritative(results, "metrics.matrix", "trajectory.matrix");
+        let (matrix_w, matrix_label) = m.matrix.authoritative();
         for (axis, key) in [(0, "matrix_x"), (1, "matrix_y"), (2, "matrix_z")] {
             if let Some(e) = self.matrix.get(axis).copied().flatten() {
-                out.push(self.matrix_result(key, axis, e, matrix_w.as_deref(), matrix_label));
+                out.push(self.matrix_result(key, axis, e, matrix_w, matrix_label));
             }
         }
-        let (fov_w, fov_label) = authoritative(results, "metrics.fov", "trajectory.fov");
+        let (fov_w, fov_label) = m.fov.authoritative();
         for (axis, key) in [(0, "fov_mm_x"), (1, "fov_mm_y"), (2, "fov_mm_z")] {
             if let Some(e) = self.fov_mm.get(axis).copied().flatten() {
-                out.push(self.fov_result(key, axis, e, fov_w.as_deref(), fov_label));
+                out.push(self.fov_result(key, axis, e, fov_w, fov_label));
             }
         }
         out
@@ -217,13 +218,13 @@ impl Spec {
         &self,
         field: &str,
         metric_id: &str,
+        measured: Option<f64>,
         scale: f64,
         expected: f64,
-        results: &[CheckResult],
     ) -> CheckResult {
         let id = format!("spec.{field}");
         let tol = self.tolerance_for(field);
-        match measured_f64(results, metric_id) {
+        match measured {
             None => not_measurable(&id, field, metric_id, Value::from(expected)),
             Some(raw) => compare(&id, field, raw * scale, expected, tol, ""),
         }
@@ -234,12 +235,12 @@ impl Spec {
         &self,
         field: &str,
         metric_id: &str,
+        measured: Option<f64>,
         expected: i64,
-        results: &[CheckResult],
     ) -> CheckResult {
         let id = format!("spec.{field}");
         let tol = self.tolerance_for(field);
-        match measured_f64(results, metric_id) {
+        match measured {
             None => not_measurable(&id, field, metric_id, Value::from(expected)),
             #[allow(clippy::cast_possible_truncation)] // counts are small, exact in f64
             Some(raw) => compare_count(&id, field, raw.round() as i64, expected, tol, ""),
@@ -379,46 +380,6 @@ fn oversampling_note(os: f64, witness_label: &str, physical_str: &str) -> String
         format!(" [{witness_label}: physical {physical_str} ÷ oversampling {os}]")
     } else {
         format!(" [{witness_label}]")
-    }
-}
-
-// --- reading the file-only results -------------------------------------------
-
-/// Find a result by id.
-fn find<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a CheckResult> {
-    results.iter().find(|r| r.id == id)
-}
-
-/// A scalar measured value, or `None` when the metric was not measured (a `skip`
-/// carries no `measured`, so this is `None`).
-fn measured_f64(results: &[CheckResult], id: &str) -> Option<f64> {
-    find(results, id)
-        .and_then(|r| r.measured.as_ref())
-        .and_then(Value::as_f64)
-}
-
-/// A measured `[x, y, z]` array as `[Option<f64>]` (a JSON `null` axis → `None`),
-/// or `None` when the check carried no array (e.g. it `skip`ped).
-fn measured_array(results: &[CheckResult], id: &str) -> Option<Vec<Option<f64>>> {
-    find(results, id)
-        .and_then(|r| r.measured.as_ref())
-        .and_then(Value::as_array)
-        .map(|a| a.iter().map(Value::as_f64).collect())
-}
-
-/// Pick the authoritative geometry witness: the param-algebra (`param_id`) when
-/// it produced a `pass` (the Cartesian model held), else the trajectory gate
-/// (`traj_id`). Returns its measured `[x, y, z]` array and a label for the message.
-fn authoritative(
-    results: &[CheckResult],
-    param_id: &str,
-    traj_id: &str,
-) -> (Option<Vec<Option<f64>>>, &'static str) {
-    let param_applies = find(results, param_id).is_some_and(|r| r.status == Status::Pass);
-    if param_applies {
-        (measured_array(results, param_id), "param-algebra")
-    } else {
-        (measured_array(results, traj_id), "trajectory")
     }
 }
 

@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use seq_validate_core::{Profile, Report, Sequence, Spec, checks, profile, render};
+use seq_validate_core::{Measurements, Profile, Report, Sequence, Spec, checks, profile, render};
 
 /// Validate a Pulseq `.seq` file: report its metrics, integrity, and safety, and
 /// optionally assert them against an expected-value spec.
@@ -105,8 +105,9 @@ fn build_report(cli: &Cli, file_label: String) -> Report {
         profile: profile.as_ref(),
     });
     if let Some(spec) = &spec {
-        // Spec assertions reuse the measured values from the file-only checks.
-        let assertions = spec.assert(&results);
+        // Spec assertions reuse the measured values from the file-only checks,
+        // read through the typed `Measurements` surface.
+        let assertions = spec.assert(&Measurements::from_results(&results));
         results.extend(assertions);
     }
     Report::for_sequence(file_label, &seq, results)
