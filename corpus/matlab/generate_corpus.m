@@ -11,18 +11,24 @@
 %
 %   matlab -batch "run('corpus/matlab/generate_corpus.m')"
 %
-% Requirements: the Pulseq mr-toolbox on the path (set PULSEQ_MATLAB below or via
-% the PULSEQ_MATLAB env var). The bundled fnint.m shim lets testReport's k-space
-% integration run without the Curve Fitting Toolbox.
+% Requirements: the Pulseq mr-toolbox on the MATLAB path — set the PULSEQ_MATLAB
+% env var to its `matlab` directory, or addpath() it yourself before running. The
+% bundled fnint.m shim lets testReport's k-space integration run without the
+% Curve Fitting Toolbox.
 
 clear; clc;
 here = fileparts(mfilename('fullpath'));
 addpath(here);                                   % fnint.m shim (first, so it is found)
 pulseq_matlab = getenv('PULSEQ_MATLAB');
-if isempty(pulseq_matlab)
-    pulseq_matlab = '/mnt/d/Documents/coding/pulsepal-skill/pulseq-docs/matlab';
+if ~isempty(pulseq_matlab)
+    addpath(pulseq_matlab);
 end
-addpath(pulseq_matlab);
+if isempty(which('mr.Sequence'))
+    error('generate_corpus:noPulseq', ...
+        ['Pulseq mr-toolbox not found. Set the PULSEQ_MATLAB env var to its ' ...
+         '`matlab` directory (e.g. export PULSEQ_MATLAB=/path/to/pulseq/matlab) ' ...
+         'or addpath() it before running this script.']);
+end
 outdir = fullfile(here, '..', 'data');
 if ~exist(outdir, 'dir'); mkdir(outdir); end
 

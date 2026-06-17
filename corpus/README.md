@@ -58,7 +58,7 @@ Curve Fitting Toolbox (it implements the antiderivative of a piecewise polynomia
 that the toolbox's Octave path otherwise needs).
 
 ```bash
-# point at your mr-toolbox checkout (or rely on the default in the script)
+# point at your mr-toolbox checkout (or addpath() it yourself before running)
 export PULSEQ_MATLAB=/path/to/pulseq/matlab
 matlab -batch "run('corpus/matlab/generate_corpus.m')"
 ```
