@@ -33,7 +33,7 @@
 use std::collections::BTreeMap;
 
 use crate::checks::{Check, CheckCtx};
-use crate::ir::{Adc, Rf, RfUse, Sequence, Shape};
+use crate::ir::{Adc, Rf, RfUse, Sequence};
 use crate::result::{Category, CheckResult};
 
 /// The derived-metrics check, wired into [`crate::checks::registry`].
@@ -91,30 +91,7 @@ pub(crate) fn is_non_excitation_use(use_: RfUse) -> bool {
 /// (`crate::trajectory`), which uses it to tell an excitation from a refocusing /
 /// preparation pulse when deciding where to reset k-space.
 pub(crate) fn flip_deg(rf: &Rf) -> f64 {
-    rf.amp * integrate(&rf.shape).norm() * 360.0
-}
-
-/// Trapezoidal integral of a sparse [`Shape`] over its full active extent
-/// `[0, duration]`. Samples are breakpoints of a piecewise-linear waveform held
-/// constant from `0` to the first sample and from the last sample to `duration`
-/// — exactly the IR's [`Shape::interpolate`] convention. For a uniform centred
-/// shape this reproduces the midpoint rule (`Σ amp · raster`); for an explicit
-/// boundary grid (`[0, dur]`) it reproduces the plain trapezoid — the two cases
-/// unified into one rule.
-#[allow(clippy::indexing_slicing)] // Shape invariants guarantee `time`/`amp` non-empty and equal length
-fn integrate<T>(shape: &Shape<T>) -> T
-where
-    T: Copy + std::ops::Add<Output = T> + std::ops::Mul<f64, Output = T>,
-{
-    let (t, a) = (&shape.time, &shape.amp);
-    let n = t.len();
-    // Leading flat segment [0, t[0]] (also seeds the accumulator's zero value).
-    let mut acc = a[0] * t[0];
-    for i in 1..n {
-        acc = acc + (a[i - 1] + a[i]) * (0.5 * (t[i] - t[i - 1]));
-    }
-    // Trailing flat segment [t[last], duration].
-    acc + a[n - 1] * (shape.duration - t[n - 1])
+    rf.amp * crate::waveform::integrate(&rf.shape).norm() * 360.0
 }
 
 /// numpy-style median: the mean of the two central values for an even count.

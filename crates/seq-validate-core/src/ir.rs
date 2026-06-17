@@ -221,7 +221,9 @@ impl Sequence {
             .iter()
             .map(|b| {
                 let area = |g: Option<&model::Gradient>| {
-                    g.map_or(0.0, |g| model_grad_area(g, seq.time_raster.grad))
+                    g.map_or(0.0, |g| {
+                        crate::waveform::model_area(g, seq.time_raster.grad)
+                    })
                 };
                 [
                     area(b.gx.as_deref()),
@@ -276,42 +278,6 @@ fn recompute_signature(source: &str, algo: &str) -> Option<String> {
     let newline = source.find("\n[SIGNATURE]")?;
     let signed = source.get(..newline)?;
     Some(format!("{:x}", md5::compute(signed.as_bytes())))
-}
-
-/// Zeroth moment (`∫G·dt`, `[Hz/m·s]`) of one canonical `model` gradient. A
-/// trapezoid integrates in closed form; a free gradient integrates its sampled
-/// shape (in raster ticks, scaled to seconds). This is the logical-frame area —
-/// the gradient's own per-axis amplitude, before any block rotation.
-fn model_grad_area(g: &model::Gradient, grad_raster: f64) -> f64 {
-    match g {
-        model::Gradient::Trap {
-            amp,
-            rise,
-            flat,
-            fall,
-            ..
-        } => amp * (flat + 0.5 * (rise + fall)),
-        model::Gradient::Free { amp, shape, .. } => {
-            amp * integrate_shape_ticks(shape) * grad_raster
-        }
-    }
-}
-
-/// Trapezoidal integral of a `model` shape over its active extent `[0, duration]`
-/// in raster *ticks* (multiply by the raster to get seconds). The waveform is
-/// held constant from `0` to the first sample and from the last to `duration`,
-/// matching the shape's interpolation convention — so a uniform centred shape
-/// integrates as the midpoint rule and an explicit boundary grid as the plain
-/// trapezoid.
-#[allow(clippy::indexing_slicing)] // Shape invariants: `time`/`amp` non-empty, equal length
-fn integrate_shape_ticks(shape: &model::Shape<f64>) -> f64 {
-    let (t, a) = (&shape.time, &shape.amp);
-    let n = t.len();
-    let mut acc = a[0] * t[0];
-    for i in 1..n {
-        acc += (a[i - 1] + a[i]) * 0.5 * (t[i] - t[i - 1]);
-    }
-    acc + a[n - 1] * (f64::from(shape.duration) - t[n - 1])
 }
 
 /// Re-parse the **raw** layer (faithful, ID-indexed section tables) for

@@ -36,6 +36,7 @@ use crate::checks::{Check, CheckCtx};
 use crate::ir::{Block, DEFAULT_LARMOR_HZ, Gradient, Sequence};
 use crate::profile::{Pns, Profile};
 use crate::result::{Category, CheckResult};
+use crate::waveform;
 
 /// The hardware/safety check, wired into [`crate::checks::registry`].
 pub(crate) fn checks() -> Vec<Box<dyn Check>> {
@@ -75,71 +76,9 @@ fn ut(hz: f64) -> f64 {
 
 // --- gradient waveform primitives --------------------------------------------
 
-/// One linear segment of a gradient shape: its constant slew [Hz/m/s] and
-/// duration [s]. Flat segments have zero slew.
-struct Ramp {
-    slew: f64,
-    dur: f64,
-}
-
-/// The linear segments of a gradient's (piecewise-linear) shape, in physical
-/// Hz/m/s. A trapezoid yields rise / flat(0) / fall; a sampled free gradient one
-/// per inter-sample interval. The leading/trailing held-flat regions carry no
-/// slew and are omitted.
-#[allow(clippy::indexing_slicing)] // Shape invariant: time/amp non-empty and equal length
-fn grad_ramps(g: &Gradient) -> Vec<Ramp> {
-    let (t, a) = (&g.shape.time, &g.shape.amp);
-    let mut out = Vec::with_capacity(t.len());
-    for i in 1..t.len() {
-        let dur = t[i] - t[i - 1];
-        if dur > 0.0 {
-            out.push(Ramp {
-                slew: g.amp * (a[i] - a[i - 1]) / dur,
-                dur,
-            });
-        }
-    }
-    out
-}
-
 /// Peak gradient amplitude [Hz/m] over a gradient's active extent.
 fn grad_peak_amp(g: &Gradient) -> f64 {
     g.amp.abs() * g.shape.amp.iter().fold(0.0_f64, |m, &x| m.max(x.abs()))
-}
-
-/// Instantaneous gradient amplitude [Hz/m] at block-relative time `t` [s]; `0`
-/// outside the gradient's active window.
-fn grad_value(g: &Gradient, t: f64) -> f64 {
-    let local = t - g.delay;
-    if local < 0.0 || local > g.shape.duration {
-        0.0
-    } else {
-        g.amp * g.shape.interpolate(local)
-    }
-}
-
-/// Instantaneous slew [Hz/m/s] of `g` at block-relative time `t`: the slope of the
-/// shape segment containing `t`, or `0` outside the active window / in a held-flat
-/// region. Sampling at a segment's interior (a sub-interval midpoint) avoids the
-/// gradient's start/end edge, where the held-flat convention is not a real ramp.
-#[allow(clippy::indexing_slicing)] // Shape invariant: time/amp non-empty and equal length
-fn slew_value(g: &Gradient, t: f64) -> f64 {
-    let local = t - g.delay;
-    let (time, amp) = (&g.shape.time, &g.shape.amp);
-    if local < time[0] || local > g.shape.duration {
-        return 0.0;
-    }
-    for i in 1..time.len() {
-        if local <= time[i] {
-            let seg = time[i] - time[i - 1];
-            return if seg > 0.0 {
-                g.amp * (amp[i] - amp[i - 1]) / seg
-            } else {
-                0.0
-            };
-        }
-    }
-    0.0 // trailing held-flat region
 }
 
 /// Block-relative breakpoint times where any axis changes slope: every shape
@@ -188,7 +127,7 @@ fn analyze_gradients(seq: &Sequence) -> GradStats {
                 st.grad[a] = pk;
                 st.grad_block[a] = bi;
             }
-            for r in grad_ramps(g) {
+            for r in waveform::ramps(g) {
                 let s = r.slew.abs();
                 if s > st.slew[a] {
                     st.slew[a] = s;
@@ -234,10 +173,10 @@ fn analyze_gradients(seq: &Sequence) -> GradStats {
 }
 
 fn grad_value_opt(g: &Option<Gradient>, t: f64) -> f64 {
-    g.as_ref().map_or(0.0, |g| grad_value(g, t))
+    g.as_ref().map_or(0.0, |g| waveform::value_at(g, t))
 }
 fn slew_value_opt(g: &Option<Gradient>, t: f64) -> f64 {
-    g.as_ref().map_or(0.0, |g| slew_value(g, t))
+    g.as_ref().map_or(0.0, |g| waveform::slew_at(g, t))
 }
 fn mag3(x: f64, y: f64, z: f64) -> f64 {
     (x * x + y * y + z * z).sqrt()
@@ -279,7 +218,7 @@ fn pns_stats(seq: &Sequence, pns: &Pns) -> ([f64; 3], [usize; 3]) {
     for (bi, b) in seq.blocks.iter().enumerate() {
         for (a, g) in [&b.gx, &b.gy, &b.gz].iter().enumerate() {
             let Some(g) = g else { continue };
-            for r in grad_ramps(g) {
+            for r in waveform::ramps(g) {
                 let sr = t_per_m_per_s(r.slew).abs();
                 let pct = 100.0 * sr / smin * r.dur / (c + r.dur);
                 if let Some(p) = peak.get_mut(a)

@@ -643,7 +643,7 @@ mod tests {
 
     /// Zeroth moment of a resampled output gradient over its active extent, with
     /// the IR's hold-flat-before-first/after-last convention (mirrors
-    /// `ir::integrate_shape_ticks`). Used to check that `rotate_resample`'s output
+    /// `waveform::partial_integral`). Used to check that `rotate_resample`'s output
     /// integrates to the analytic mix.
     fn moment(g: &crate::interp::Gradient) -> f64 {
         let (t, a) = (&g.shape.time, &g.shape.amp);

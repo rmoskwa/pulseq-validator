@@ -37,6 +37,7 @@ mod hardware;
 mod integrity;
 mod metrics;
 mod trajectory;
+mod waveform;
 
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
