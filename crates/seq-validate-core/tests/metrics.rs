@@ -21,8 +21,7 @@
 )]
 
 use seq_validate_core::checks::run_all;
-use seq_validate_core::serde_json::Value;
-use seq_validate_core::{CheckCtx, CheckResult, DEFAULT_LARMOR_HZ, Sequence, Status};
+use seq_validate_core::{CheckCtx, CheckResult, DEFAULT_LARMOR_HZ, Measurements, Sequence, Status};
 
 /// Single-shot GRE: one 90° excitation (a 2-sample block pulse, `amp·∫ =
 /// 125000·2e-6 = 0.25` turns → 90°) at RF-centre 1 µs, then a 64-sample, 1 µs
@@ -207,15 +206,6 @@ fn get<'a>(results: &'a [CheckResult], id: &str) -> &'a CheckResult {
         .unwrap_or_else(|| panic!("no result with id `{id}` in {results:#?}"))
 }
 
-/// The numeric `measured` value of a metric (panics if it is missing/non-numeric).
-fn measured(results: &[CheckResult], id: &str) -> f64 {
-    let r = get(results, id);
-    r.measured
-        .as_ref()
-        .and_then(Value::as_f64)
-        .unwrap_or_else(|| panic!("`{id}` has no numeric measured value: {r:#?}"))
-}
-
 #[track_caller]
 fn assert_close(actual: f64, expected: f64, tol: f64, what: &str) {
     assert!(
@@ -227,13 +217,14 @@ fn assert_close(actual: f64, expected: f64, tol: f64, what: &str) {
 #[test]
 fn single_shot_gre_known_values() {
     let r = results_for(SINGLE_SHOT_GRE);
+    let m = Measurements::from_results(&r);
 
-    assert_close(measured(&r, "metrics.flip_angle"), 90.0, 1e-6, "flip");
-    assert_close(measured(&r, "metrics.scan_time"), 80e-6, 1e-9, "scan time");
-    assert_close(measured(&r, "metrics.n_slices"), 1.0, 0.0, "n_slices");
-    assert_close(measured(&r, "metrics.te"), 41e-6, 1e-9, "TE");
+    assert_close(m.flip_deg.unwrap(), 90.0, 1e-6, "flip");
+    assert_close(m.scan_time_s.unwrap(), 80e-6, 1e-9, "scan time");
+    assert_close(m.n_slices.unwrap(), 1.0, 0.0, "n_slices");
+    assert_close(m.te_s.unwrap(), 41e-6, 1e-9, "TE");
     // Single excitation per slice: TR falls back to the whole-sequence duration.
-    assert_close(measured(&r, "metrics.tr"), 80e-6, 1e-9, "TR");
+    assert_close(m.tr_s.unwrap(), 80e-6, 1e-9, "TR");
     // Single echo: no echo spacing to report.
     assert_eq!(get(&r, "metrics.echo_spacing").status, Status::Skip);
 }
@@ -241,27 +232,24 @@ fn single_shot_gre_known_values() {
 #[test]
 fn effective_te_is_the_k_centre_echo_not_the_first() {
     let r = results_for(MULTI_ECHO);
+    let m = Measurements::from_results(&r);
 
     // The central ky line is the *second* echo (311 µs), not the first (141 µs).
-    assert_close(measured(&r, "metrics.te"), 311e-6, 1e-9, "effective TE");
+    assert_close(m.te_s.unwrap(), 311e-6, 1e-9, "effective TE");
     assert!(
-        measured(&r, "metrics.te") > 200e-6,
+        m.te_s.unwrap() > 200e-6,
         "effective TE must be the mid-train k-centre echo, not the first echo"
     );
-    assert_close(
-        measured(&r, "metrics.echo_spacing"),
-        170e-6,
-        1e-9,
-        "echo spacing",
-    );
+    assert_close(m.echo_spacing_s.unwrap(), 170e-6, 1e-9, "echo spacing");
 }
 
 #[test]
 fn multi_slice_tr_and_n_slices() {
     let r = results_for(MULTI_SLICE);
+    let m = Measurements::from_results(&r);
 
-    assert_close(measured(&r, "metrics.n_slices"), 2.0, 0.0, "n_slices");
-    assert_close(measured(&r, "metrics.tr"), 200e-6, 1e-9, "TR");
+    assert_close(m.n_slices.unwrap(), 2.0, 0.0, "n_slices");
+    assert_close(m.tr_s.unwrap(), 200e-6, 1e-9, "TR");
     // No readout ⇒ TE / echo spacing unmeasurable, reported as skips.
     assert_eq!(get(&r, "metrics.te").status, Status::Skip);
     assert_eq!(get(&r, "metrics.echo_spacing").status, Status::Skip);
@@ -273,7 +261,12 @@ fn no_excitation_skips_everything_but_scan_time() {
 
     // Scan time is always measurable.
     assert_eq!(get(&r, "metrics.scan_time").status, Status::Pass);
-    assert_close(measured(&r, "metrics.scan_time"), 500e-6, 1e-9, "scan time");
+    assert_close(
+        Measurements::from_results(&r).scan_time_s.unwrap(),
+        500e-6,
+        1e-9,
+        "scan time",
+    );
     // Everything that needs an excitation is a first-class skip, never a failure.
     for id in [
         "metrics.tr",
@@ -291,17 +284,13 @@ fn no_excitation_skips_everything_but_scan_time() {
 #[test]
 fn example_metrics_are_sane_and_pinned() {
     let r = results_for_fixture("t1_spgr_axial_brain");
+    let m = Measurements::from_results(&r);
 
-    assert_close(
-        measured(&r, "metrics.scan_time"),
-        76.809_216,
-        1e-5,
-        "scan time",
-    );
-    assert_close(measured(&r, "metrics.n_slices"), 44.0, 0.0, "n_slices");
-    assert_close(measured(&r, "metrics.tr"), 0.400_048, 1e-5, "TR");
-    assert_close(measured(&r, "metrics.te"), 0.004_008, 1e-5, "TE");
-    assert_close(measured(&r, "metrics.flip_angle"), 80.0, 1e-3, "flip");
+    assert_close(m.scan_time_s.unwrap(), 76.809_216, 1e-5, "scan time");
+    assert_close(m.n_slices.unwrap(), 44.0, 0.0, "n_slices");
+    assert_close(m.tr_s.unwrap(), 0.400_048, 1e-5, "TR");
+    assert_close(m.te_s.unwrap(), 0.004_008, 1e-5, "TE");
+    assert_close(m.flip_deg.unwrap(), 80.0, 1e-3, "flip");
     // A single-echo SPGR ⇒ no echo spacing.
     assert_eq!(get(&r, "metrics.echo_spacing").status, Status::Skip);
 }
@@ -312,11 +301,8 @@ fn example_metrics_are_sane_and_pinned() {
 fn echo_train_fixtures_pick_the_mid_train_k_centre_echo() {
     // HASTE: single-shot, long train. Effective TE 108 ms, ESP 12 ms — the
     // k-centre echo is the 9th, far past the first.
-    let haste = results_for_fixture("haste");
-    let (te, esp) = (
-        measured(&haste, "metrics.te"),
-        measured(&haste, "metrics.echo_spacing"),
-    );
+    let haste = Measurements::from_results(&results_for_fixture("haste"));
+    let (te, esp) = (haste.te_s.unwrap(), haste.echo_spacing_s.unwrap());
     assert_close(te, 0.108, 1e-4, "HASTE effective TE");
     assert_close(esp, 0.012, 1e-4, "HASTE echo spacing");
     assert!(
@@ -327,11 +313,8 @@ fn echo_train_fixtures_pick_the_mid_train_k_centre_echo() {
     // PROPELLER (rotated TSE blades): effective TE 84 ms, ESP 14 ms — the
     // k-centre echo is the 6th. This only comes out right because the
     // phase-encode area is measured in the logical (pre-rotation) frame.
-    let prop = results_for_fixture("propeller-fse-axial");
-    let (te, esp) = (
-        measured(&prop, "metrics.te"),
-        measured(&prop, "metrics.echo_spacing"),
-    );
+    let prop = Measurements::from_results(&results_for_fixture("propeller-fse-axial"));
+    let (te, esp) = (prop.te_s.unwrap(), prop.echo_spacing_s.unwrap());
     assert_close(te, 0.083_998, 1e-4, "PROPELLER effective TE");
     assert_close(esp, 0.014, 1e-4, "PROPELLER echo spacing");
     assert!(

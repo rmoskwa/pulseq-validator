@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 
 use seq_validate_core::checks::run_all;
 use seq_validate_core::serde_json::{self, Value};
-use seq_validate_core::{CheckCtx, CheckResult, Sequence, Status};
+use seq_validate_core::{CheckCtx, CheckResult, Measurements, Sequence, Status};
 
 /// `(metric id, sidecar field, tolerance)`. Tolerance bands in SI units:
 /// TE/TR/echo-spacing to 0.1 ms, flip to
@@ -150,18 +150,6 @@ fn result<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a CheckResult> {
     results.iter().find(|r| r.id == id)
 }
 
-fn measured_array<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a Vec<Value>> {
-    result(results, id)
-        .and_then(|r| r.measured.as_ref())
-        .and_then(Value::as_array)
-}
-
-fn measured_scalar(results: &[CheckResult], id: &str) -> Option<f64> {
-    result(results, id)
-        .and_then(|r| r.measured.as_ref())
-        .and_then(Value::as_f64)
-}
-
 fn status_of(results: &[CheckResult], id: &str) -> Option<Status> {
     result(results, id).map(|r| r.status)
 }
@@ -218,6 +206,7 @@ fn corpus_geometry_dual_witness() {
             seq: &seq,
             profile: None,
         });
+        let m = Measurements::from_results(&results);
         let params = read_json(&seqf.with_extension("params.json"));
 
         let matrix = i64_array(&params, "matrix"); // [x, y, z]
@@ -242,7 +231,7 @@ fn corpus_geometry_dual_witness() {
 
         // Dimensionality headline: 3D iff a partition axis is encoded.
         let want_dims = if is_3d { 3.0 } else { 2.0 };
-        match measured_scalar(&results, "trajectory.dimensionality") {
+        match m.dimensionality {
             Some(d) if d == want_dims => {}
             other => failures.push(format!(
                 "{stem}: trajectory.dimensionality measured {other:?}, expected {want_dims}"
@@ -260,8 +249,12 @@ fn corpus_geometry_dual_witness() {
                     "{stem}: metrics.matrix should be `pass` (Cartesian), got {m_status:?}"
                 ));
             } else {
-                let meas: Vec<i64> = measured_array(&results, "metrics.matrix")
-                    .map(|a| a.iter().filter_map(Value::as_i64).collect())
+                #[allow(clippy::cast_possible_truncation)] // matrix counts are small, exact in f64
+                let meas: Vec<i64> = m
+                    .matrix
+                    .param
+                    .as_ref()
+                    .map(|a| a.iter().filter_map(|x| x.map(|v| v as i64)).collect())
                     .unwrap_or_default();
                 if meas != matrix {
                     failures.push(format!(
@@ -271,9 +264,9 @@ fn corpus_geometry_dual_witness() {
             }
             // FOV in-plane (and through-plane when 3D) within 2%.
             let n_axes = if is_3d { 3 } else { 2 };
-            let meas_fov = measured_array(&results, "metrics.fov");
+            let meas_fov = m.fov.param.as_ref();
             for (axis, &want) in fov.iter().enumerate().take(n_axes) {
-                let mv = meas_fov.and_then(|a| a.get(axis)).and_then(Value::as_f64);
+                let mv = meas_fov.and_then(|a| a.get(axis)).copied().flatten();
                 match mv {
                     Some(m) if (m - want).abs() <= 0.02 * want.abs() => {}
                     other => failures.push(format!(
@@ -302,9 +295,15 @@ fn corpus_geometry_dual_witness() {
             }
             // The trajectory still recovers the phase-encode count (ky blips are a
             // clean grid even when the readout is not).
-            let ky = measured_array(&results, "trajectory.matrix")
+            #[allow(clippy::cast_possible_truncation)] // phase-encode count is small, exact in f64
+            let ky = m
+                .matrix
+                .trajectory
+                .as_ref()
                 .and_then(|a| a.get(1))
-                .and_then(Value::as_i64);
+                .copied()
+                .flatten()
+                .map(|v| v as i64);
             if ky != Some(matrix[1]) {
                 failures.push(format!(
                     "{stem}: trajectory matrix_y measured {ky:?}, expected {} (phase-encode lines)",
