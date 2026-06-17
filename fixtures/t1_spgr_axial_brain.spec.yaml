@@ -1,0 +1,23 @@
+# Expected-value spec matching the bundled example, t1_spgr_axial_brain.seq.
+# Used by the Step 7 acceptance test: every provided field is within tolerance, so
+# `seq-validate t1_spgr_axial_brain.seq --spec this` passes (exit 0). The format is
+# the pulsepal-harness schema; only the fields below are checked (lenient policy).
+name: t1-spgr-axial-brain
+
+# scanner selects the bundled hardware profile for the Step 6 safety checks.
+scanner: ge-premier
+
+# RF / timing (effective k-centre TE; TR; excitation flip; slice count).
+te_ms: 4.008
+tr_ms: 400.048
+flip_angle_deg: 80
+n_slices: 44
+
+# Geometry — nominal (logical) sizes. The sequence runs 2x readout oversampling,
+# so the physical measured matrix/FOV (384 / 480 mm on x) is divided by the
+# declared per-axis oversampling before the comparison.
+#   fov_mm_z is omitted: a single-partition 2D family has no partition-encode step,
+#   so the area-algebra does not witness slice thickness (it would simply `skip`).
+matrix: [192, 192, 1]
+fov_mm: [240, 240]
+oversampling: [2, 1, 1]

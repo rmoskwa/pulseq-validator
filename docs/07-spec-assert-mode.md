@@ -13,20 +13,20 @@ that emit a target spec alongside a build.
 
 ## Tasks
 
-- [ ] **Spec schema** (adopt the harness format): `te_ms`, `tr_ms`,
+- [x] **Spec schema** (adopt the harness format): `te_ms`, `tr_ms`,
       `flip_angle_deg`, `n_slices`, `echo_spacing_ms`, `fov_mm[x,y,z]`,
       `matrix[x,y,z]`, `oversampling`, `scanner`.
-- [ ] **Tolerance model**: per-field `abs` / `rel` / `exact`, with built-in
+- [x] **Tolerance model**: per-field `abs` / `rel` / `exact`, with built-in
       sensible **defaults** (seed from harness: `te_ms`/`tr_ms` abs 0.1 ms,
       `flip_angle_deg` rel 5%, `fov_mm` rel 3% (xy) / 10% (z), `matrix` exact),
       user-overridable.
-- [ ] **Lenient policy**: check only the fields the user provides; ignore the
+- [x] **Lenient policy**: check only the fields the user provides; ignore the
       rest. (No strict "required-or-`none`" — that was deliberately relaxed.)
-- [ ] Wire `--spec <spec.yaml>`: each provided field becomes a check with
+- [x] Wire `--spec <spec.yaml>`: each provided field becomes a check with
       `expected` populated; `measured` from Steps 4–6; status from the tolerance
       comparison.
-- [ ] `scanner` field in the spec selects the Step 6 profile.
-- [ ] Geometry fields respect the dual-witness: assert against whichever witness
+- [x] `scanner` field in the spec selects the Step 6 profile.
+- [x] Geometry fields respect the dual-witness: assert against whichever witness
       is authoritative (param-algebra when Cartesian, else trajectory).
 
 ## Acceptance criteria

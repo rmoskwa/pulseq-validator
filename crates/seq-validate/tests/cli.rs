@@ -92,13 +92,89 @@ fn garbage_file_is_parse_error_with_uniform_json() {
     assert_eq!(v["sequence"], Value::Null);
 }
 
+const SPEC: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../fixtures/t1_spgr_axial_brain.spec.yaml"
+);
+
 #[test]
-fn spec_flag_is_accepted_but_noted() {
-    let (code, _, stderr) = run(&[FIXTURE, "--spec", "expected.yaml"]);
-    assert_eq!(code, 0, "an accepted-but-inert flag must not break the run");
+fn matching_spec_passes_with_a_spec_section() {
+    // The committed spec matches the example within tolerance → exit 0, and the
+    // Spec-assertions section renders with `spec.*` results.
+    let (code, stdout, _) = run(&[FIXTURE, "--spec", SPEC]);
+    assert_eq!(code, 0, "a matching spec passes: {stdout}");
+    assert!(stdout.contains("Spec assertions"), "stdout: {stdout}");
+    assert!(stdout.contains("spec.te_ms"), "stdout: {stdout}");
+    // Oversampling is divided out: physical matrix_x 384 → nominal 192.
     assert!(
-        stderr.contains("not yet active"),
-        "expected an inactivity note on stderr, got: {stderr}"
+        stdout.contains("spec.matrix_x") && stdout.contains("matches expected 192"),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("0 failed"), "stdout: {stdout}");
+}
+
+#[test]
+fn perturbing_one_field_fails_exactly_that_check() {
+    // A spec with one out-of-tolerance field fails exactly that field → exit 1.
+    let path = format!("{}/perturbed.yaml", env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(&path, "te_ms: 99.0\ntr_ms: 400.048\n").unwrap();
+    let (code, stdout, _) = run(&[FIXTURE, "--spec", &path]);
+    assert_eq!(code, 1, "an out-of-tolerance field is a fail → exit 1");
+    assert!(
+        stdout.contains("FAIL  spec.te_ms"),
+        "the perturbed field fails: {stdout}"
+    );
+    assert!(
+        stdout.contains("PASS  spec.tr_ms"),
+        "the in-tolerance field still passes: {stdout}"
+    );
+    assert!(stdout.contains("1 failed"), "exactly one fail: {stdout}");
+}
+
+#[test]
+fn omitted_spec_fields_are_silently_not_checked() {
+    // Lenient policy: only the provided field is asserted; no error for the rest.
+    let path = format!("{}/single.yaml", env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(&path, "flip_angle_deg: 80\n").unwrap();
+    let (code, stdout, _) = run(&[FIXTURE, "--spec", &path, "--json"]);
+    assert_eq!(code, 0);
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let spec_ids: Vec<&str> = v["results"]
+        .as_array()
+        .expect("results")
+        .iter()
+        .filter_map(|r| r["id"].as_str())
+        .filter(|id| id.starts_with("spec."))
+        .collect();
+    assert_eq!(
+        spec_ids,
+        vec!["spec.flip_angle_deg"],
+        "only the provided field becomes a spec check: {spec_ids:?}"
+    );
+}
+
+#[test]
+fn missing_spec_file_is_a_harness_error_exit_two() {
+    let (code, _, _) = run(&[FIXTURE, "--spec", "definitely-no-such-spec.yaml"]);
+    assert_eq!(code, 2, "an unreadable spec is a harness error, not a fail");
+    let (_, stdout, _) = run(&[FIXTURE, "--spec", "definitely-no-such-spec.yaml", "--json"]);
+    let v: Value = serde_json::from_str(&stdout).expect("error report is still valid JSON");
+    assert!(
+        v["error"].as_str().unwrap_or("").contains("spec"),
+        "the error names the spec: {stdout}"
+    );
+}
+
+#[test]
+fn spec_scanner_field_selects_the_profile() {
+    // With no --profile, the spec's `scanner` drives the Step 6 hardware checks.
+    let path = format!("{}/scanner.yaml", env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(&path, "scanner: ge-premier\nte_ms: 4.008\n").unwrap();
+    let (code, stdout, _) = run(&[FIXTURE, "--spec", &path]);
+    assert_eq!(code, 0, "stdout: {stdout}");
+    assert!(
+        stdout.contains("hardware.profile") && stdout.contains("ge-premier"),
+        "the spec's scanner selected the profile: {stdout}"
     );
 }
 

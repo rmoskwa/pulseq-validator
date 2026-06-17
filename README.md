@@ -10,24 +10,30 @@ deferred v2 goal.
 
 ## Status
 
-Early. The parser/IR (Step 1), the engine skeleton — result model, stable JSON
-contract, and CLI shell (Step 2) — sequence integrity (Step 3: raster alignment,
-timing/duration, event legality, version/signature, definitions), the derived
-imaging metrics (Step 4: TR, effective TE, flip angle, n_slices, echo spacing,
-scan time, with a MATLAB-generated oracle corpus), and the k-space trajectory
-gate with dual-witness geometry (Step 5: `k = ∫G·dt` per-axis extent / coverage /
-2D-vs-3D, plus FOV/matrix from both the Cartesian area-algebra and the trajectory,
-reconciled) are in place; hardware and spec-assert checks land in Steps 6–7.
+All seven build steps are in place. The parser/IR (Step 1), the engine skeleton —
+result model, stable JSON contract, and CLI shell (Step 2) — sequence integrity
+(Step 3: raster alignment, timing/duration, event legality, version/signature,
+definitions), the derived imaging metrics (Step 4: TR, effective TE, flip angle,
+n_slices, echo spacing, scan time, with a MATLAB-generated oracle corpus), the
+k-space trajectory gate with dual-witness geometry (Step 5: `k = ∫G·dt` per-axis
+extent / coverage / 2D-vs-3D, plus FOV/matrix from both the Cartesian area-algebra
+and the trajectory, reconciled), the scanner-profile hardware/safety checks
+(Step 6: gradient/slew/B1/dwell/dead-time and approximate PNS against bundled
+profiles), and the optional expected-spec assert mode (Step 7) are all live.
 
 ```console
-$ seq-validate scan.seq            # human report
-$ seq-validate scan.seq --json     # stable JSON (schema/report-v1.schema.json)
+$ seq-validate scan.seq                       # human report
+$ seq-validate scan.seq --json                # stable JSON (schema/report-v1.schema.json)
+$ seq-validate scan.seq --profile ge-premier  # + hardware/safety limits
+$ seq-validate scan.seq --spec expected.yaml  # + hard pass/fail vs an expected spec
 ```
 
-The CLI runs end-to-end today, grouping integrity, derived-metric, and trajectory
-results by category; exit code is `0` on success, `1` on any check failure, `2` on
-a parse/harness error. `--spec` / `--profile` are accepted but inactive until the
-later steps.
+The CLI runs end-to-end, grouping integrity, derived-metric, trajectory, hardware,
+and spec-assertion results by category; exit code is `0` on success, `1` on any
+check failure (including an out-of-tolerance spec field), `2` on a parse/harness
+error. `--profile <name>` selects a bundled scanner profile (`--set field=value`
+overrides one limit); `--spec <spec.yaml>` asserts the measured metrics against an
+expected-value spec, checking only the fields it provides.
 
 See [`docs/`](docs/) for the design and the actionable build order.
 

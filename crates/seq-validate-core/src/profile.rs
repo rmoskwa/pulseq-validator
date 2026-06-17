@@ -83,11 +83,13 @@ impl Profile {
         &["ge-premier", "generic-3t"]
     }
 
-    /// Look up a bundled profile by its [`name`](Profile::name).
+    /// Look up a bundled profile by its [`name`](Profile::name). The harness spec
+    /// stems `generic` / `default` are accepted as aliases for `generic-3t`, so a
+    /// spec authored against the harness profile names loads unmodified (`docs/07`).
     pub fn by_name(name: &str) -> Option<Profile> {
         match name {
             "ge-premier" => Some(ge_premier()),
-            "generic-3t" => Some(generic_3t()),
+            "generic-3t" | "generic" | "default" => Some(generic_3t()),
             _ => None,
         }
     }

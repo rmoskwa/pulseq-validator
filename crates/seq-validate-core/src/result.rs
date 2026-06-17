@@ -144,6 +144,9 @@ pub enum Category {
     Trajectory,
     /// Hardware/safety limits against a scanner profile.
     Hardware,
+    /// Expected-spec assertions: measured metrics compared to a user spec
+    /// (`docs/07-spec-assert-mode.md`).
+    Spec,
     /// Anything whose id prefix is unrecognized.
     Other,
 }
@@ -155,6 +158,7 @@ impl Category {
         Category::Metrics,
         Category::Trajectory,
         Category::Hardware,
+        Category::Spec,
         Category::Other,
     ];
 
@@ -165,6 +169,7 @@ impl Category {
             Category::Metrics => "metrics",
             Category::Trajectory => "trajectory",
             Category::Hardware => "hardware",
+            Category::Spec => "spec",
             Category::Other => "other",
         }
     }
@@ -176,6 +181,7 @@ impl Category {
             Category::Metrics => "Derived metrics",
             Category::Trajectory => "K-space trajectory",
             Category::Hardware => "Hardware & safety",
+            Category::Spec => "Spec assertions",
             Category::Other => "Other",
         }
     }
@@ -188,6 +194,7 @@ impl Category {
             "metrics" => Category::Metrics,
             "trajectory" => Category::Trajectory,
             "hardware" => Category::Hardware,
+            "spec" => Category::Spec,
             _ => Category::Other,
         }
     }
