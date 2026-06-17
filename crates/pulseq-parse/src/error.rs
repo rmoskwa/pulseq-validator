@@ -28,12 +28,6 @@ pub enum InterpreterError {
          one is allowed per block"
     )]
     MultipleRotationExtensions { block_id: u32 },
-    #[error(
-        "Block #{block_id}: a rotation extension rotates gradient axes that \
-         have different shapes or delays — not supported yet (would require \
-         resampling the axes onto a common time grid)"
-    )]
-    UnsupportedRotation { block_id: u32 },
     #[error("Block #{block_id}: encountered a shim with zero channels")]
     EmptyShim { block_id: u32 },
     #[error(

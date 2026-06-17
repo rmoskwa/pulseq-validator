@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 
 use seq_validate_core::checks::run_all;
 use seq_validate_core::serde_json::{self, Value};
-use seq_validate_core::{CheckCtx, Sequence, Status};
+use seq_validate_core::{CheckCtx, CheckResult, Sequence, Status};
 
 /// `(metric id, sidecar field, tolerance)`. Tolerances follow the harness
 /// `param_check.py` bands, in SI units: TE/TR/echo-spacing to 0.1 ms, flip to
@@ -136,5 +136,190 @@ fn corpus_recovers_inputs_and_matches_self_report() {
     eprintln!(
         "[corpus] {} sequences, {generated_checks} recover-the-inputs + {oracle_checks} self-report checks passed",
         seqs.len()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 — dual-witness geometry (`docs/05-trajectory-geometry.md`).
+// ---------------------------------------------------------------------------
+
+fn result<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a CheckResult> {
+    results.iter().find(|r| r.id == id)
+}
+
+fn measured_array<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a Vec<Value>> {
+    result(results, id)
+        .and_then(|r| r.measured.as_ref())
+        .and_then(Value::as_array)
+}
+
+fn measured_scalar(results: &[CheckResult], id: &str) -> Option<f64> {
+    result(results, id)
+        .and_then(|r| r.measured.as_ref())
+        .and_then(Value::as_f64)
+}
+
+fn status_of(results: &[CheckResult], id: &str) -> Option<Status> {
+    result(results, id).map(|r| r.status)
+}
+
+fn i64_array(v: &Value, key: &str) -> Vec<i64> {
+    v.get(key)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_i64).collect())
+        .unwrap_or_default()
+}
+
+fn f64_array(v: &Value, key: &str) -> Vec<f64> {
+    v.get(key)
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_f64).collect())
+        .unwrap_or_default()
+}
+
+/// The dual-witness geometry, checked against the known generation inputs
+/// (`matrix` / `fov_mm` in `params.json`).
+///
+/// Two families of assertion, mirroring the Step 5 acceptance criteria:
+///
+///   1. **Cartesian families** (one ADC per excitation — `echo_spacing_s: null`):
+///      the param-algebra witness (`metrics.matrix` / `metrics.fov`) recovers the
+///      generated matrix exactly and FOV within tolerance, AND the trajectory
+///      witness agrees with it (`trajectory.geometry_agreement: pass`).
+///   2. **Echo-train families** (EPI/mGRE — `echo_spacing_s` set): the param-algebra
+///      `skip`s (the single-line Cartesian model does not apply) and the
+///      trajectory gate still measures the geometry — its phase-encode count and
+///      the 2D-vs-3D dimensionality match the generated inputs.
+#[test]
+fn corpus_geometry_dual_witness() {
+    let dir = corpus_dir();
+    let mut seqs: Vec<PathBuf> = fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("corpus dir {dir:?}: {e}"))
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "seq"))
+        .collect();
+    seqs.sort();
+    assert!(!seqs.is_empty(), "no corpus sequences found in {dir:?}");
+
+    let mut failures: Vec<String> = Vec::new();
+    let (mut cartesian_checked, mut echotrain_checked) = (0u32, 0u32);
+
+    for seqf in &seqs {
+        let stem = seqf
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .expect("utf-8 stem");
+        let seq = Sequence::from_file(seqf).unwrap_or_else(|e| panic!("{stem} must parse: {e}"));
+        let results = run_all(&CheckCtx { seq: &seq });
+        let params = read_json(&seqf.with_extension("params.json"));
+
+        let matrix = i64_array(&params, "matrix"); // [x, y, z]
+        let fov = f64_array(&params, "fov_mm"); // [x, y, z] mm
+        assert_eq!(matrix.len(), 3, "{stem}: params.matrix must be [x,y,z]");
+        assert_eq!(fov.len(), 3, "{stem}: params.fov_mm must be [x,y,z]");
+        let is_3d = matrix[2] > 1;
+        // Single-readout Cartesian model ⟺ not an echo train ⟺ no echo spacing.
+        let cartesian = field(&params, "echo_spacing_s").is_none();
+
+        // No geometry result may ever fail.
+        for r in results.iter().filter(|r| {
+            r.id.starts_with("trajectory.") || r.id == "metrics.fov" || r.id == "metrics.matrix"
+        }) {
+            if r.status == Status::Fail {
+                failures.push(format!(
+                    "{stem}: {} unexpectedly failed: {}",
+                    r.id, r.message
+                ));
+            }
+        }
+
+        // Dimensionality headline: 3D iff a partition axis is encoded.
+        let want_dims = if is_3d { 3.0 } else { 2.0 };
+        match measured_scalar(&results, "trajectory.dimensionality") {
+            Some(d) if d == want_dims => {}
+            other => failures.push(format!(
+                "{stem}: trajectory.dimensionality measured {other:?}, expected {want_dims}"
+            )),
+        }
+
+        let m_status = status_of(&results, "metrics.matrix");
+        let agree = status_of(&results, "trajectory.geometry_agreement");
+
+        if cartesian {
+            cartesian_checked += 1;
+            // Param-algebra applies and recovers the generated matrix exactly.
+            if m_status != Some(Status::Pass) {
+                failures.push(format!(
+                    "{stem}: metrics.matrix should be `pass` (Cartesian), got {m_status:?}"
+                ));
+            } else {
+                let meas: Vec<i64> = measured_array(&results, "metrics.matrix")
+                    .map(|a| a.iter().filter_map(Value::as_i64).collect())
+                    .unwrap_or_default();
+                if meas != matrix {
+                    failures.push(format!(
+                        "{stem}: metrics.matrix measured {meas:?}, expected {matrix:?}"
+                    ));
+                }
+            }
+            // FOV in-plane (and through-plane when 3D) within 2%.
+            let n_axes = if is_3d { 3 } else { 2 };
+            let meas_fov = measured_array(&results, "metrics.fov");
+            for (axis, &want) in fov.iter().enumerate().take(n_axes) {
+                let mv = meas_fov.and_then(|a| a.get(axis)).and_then(Value::as_f64);
+                match mv {
+                    Some(m) if (m - want).abs() <= 0.02 * want.abs() => {}
+                    other => failures.push(format!(
+                        "{stem}: metrics.fov[{axis}] measured {other:?}, expected {want} mm (±2%)"
+                    )),
+                }
+            }
+            // The two witnesses must agree.
+            if agree != Some(Status::Pass) {
+                failures.push(format!(
+                    "{stem}: trajectory.geometry_agreement should be `pass`, got {agree:?}"
+                ));
+            }
+        } else {
+            echotrain_checked += 1;
+            // Param-algebra defers; the trajectory gate owns geometry.
+            if m_status != Some(Status::Skip) {
+                failures.push(format!(
+                    "{stem}: metrics.matrix should `skip` for an echo train, got {m_status:?}"
+                ));
+            }
+            if agree != Some(Status::Skip) {
+                failures.push(format!(
+                    "{stem}: trajectory.geometry_agreement should `skip` (one witness), got {agree:?}"
+                ));
+            }
+            // The trajectory still recovers the phase-encode count (ky blips are a
+            // clean grid even when the readout is not).
+            let ky = measured_array(&results, "trajectory.matrix")
+                .and_then(|a| a.get(1))
+                .and_then(Value::as_i64);
+            if ky != Some(matrix[1]) {
+                failures.push(format!(
+                    "{stem}: trajectory matrix_y measured {ky:?}, expected {} (phase-encode lines)",
+                    matrix[1]
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} dual-witness geometry mismatch(es):\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+    assert!(
+        cartesian_checked > 0 && echotrain_checked > 0,
+        "expected both Cartesian and echo-train families in the corpus"
+    );
+    eprintln!(
+        "[corpus geometry] {cartesian_checked} Cartesian (dual-witness agree) + \
+         {echotrain_checked} echo-train (trajectory-only) families verified"
     );
 }
