@@ -72,6 +72,23 @@ pub struct TimeRaster {
     pub block: f64,
 }
 
+/// The `[SIGNATURE]` section, lifted from the raw layer (the `model`/`interp`
+/// layers drop it). `declared_hash` is the hash the file carries; `computed_hash`
+/// is what we recompute over the *signed region* — everything up to (and
+/// excluding) the newline that precedes `[SIGNATURE]`, per the spec's
+/// verification rule — present only when `algo` is one we can reproduce
+/// (currently `md5`). The `integrity.signature` check compares the two.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Signature {
+    /// Hashing algorithm id from the `Type` field, verbatim (e.g. `"md5"`).
+    pub algo: String,
+    /// The hash the file declares, verbatim from the `Hash` field.
+    pub declared_hash: String,
+    /// The hash recomputed over the signed region; `None` when `algo` is not one
+    /// we can reproduce.
+    pub computed_hash: Option<String>,
+}
+
 /// The interpreted IR for one `.seq` file.
 ///
 /// [`blocks`](Self::blocks) and [`starts`](Self::starts) are parallel vectors in
@@ -90,6 +107,9 @@ pub struct Sequence {
     /// snapshots. Recognized keys (`Name`, `FOV`, the rasters) are *also*
     /// surfaced as typed fields above; this map keeps the unabridged source.
     pub definitions: BTreeMap<String, String>,
+    /// The `[SIGNATURE]` section, if the file carries one (declared hash plus our
+    /// recomputed one). `None` when the file is unsigned.
+    pub signature: Option<Signature>,
     /// Interpreted blocks in execution order.
     pub blocks: Vec<Block>,
     /// Absolute start time (seconds) of each block; `starts[i]` aligns with
@@ -145,6 +165,18 @@ impl Sequence {
             })
             .unwrap_or_default();
 
+        // `[SIGNATURE]` is also dropped by the model layer, so lift it here. The
+        // declared hash/algo come from the parsed section; the recomputed hash is
+        // a pure function of the source bytes (see `recompute_signature`).
+        let signature = sections.iter().find_map(|s| match s {
+            raw::Section::Signature(sig) => Some(Signature {
+                algo: sig.typ.clone(),
+                declared_hash: sig.hash.clone(),
+                computed_hash: recompute_signature(source, &sig.typ),
+            }),
+            _ => None,
+        });
+
         // model layer — validated, deduplicated. Consumes `sections`.
         let seq = model::Sequence::from_parsed_file(sections).map_err(Error::Parse)?;
         let time_raster = TimeRaster {
@@ -175,6 +207,7 @@ impl Sequence {
             fov,
             time_raster,
             definitions,
+            signature,
             blocks,
             starts,
             total_duration,
@@ -191,6 +224,25 @@ impl Sequence {
     pub fn start(&self, i: usize) -> Option<f64> {
         self.starts.get(i).copied()
     }
+}
+
+/// Recompute the file signature over the *signed region*: everything up to (and
+/// excluding) the newline character that precedes the `[SIGNATURE]` header, per
+/// the spec's verification rule (§2.4). Returns `None` for an algorithm we can't
+/// reproduce, or if the header can't be located.
+///
+/// We can recompute only `md5` for now. The raw parser recognizes the header only
+/// as the exact token `[SIGNATURE]`, so the first `"\n[SIGNATURE]"` in the source
+/// is that header line (a stray `[SIGNATURE]` inside the section's own comment is
+/// mid-line, not newline-prefixed). The byte before that header *is* the newline
+/// the rule strips, so the signed region is simply the slice before it.
+fn recompute_signature(source: &str, algo: &str) -> Option<String> {
+    if !algo.eq_ignore_ascii_case("md5") {
+        return None;
+    }
+    let newline = source.find("\n[SIGNATURE]")?;
+    let signed = source.get(..newline)?;
+    Some(format!("{:x}", md5::compute(signed.as_bytes())))
 }
 
 /// Re-parse the **raw** layer (faithful, ID-indexed section tables) for

@@ -10,9 +10,10 @@ deferred v2 goal.
 
 ## Status
 
-Early. The parser/IR (Step 1) and the engine skeleton — result model, stable
-JSON contract, and CLI shell (Step 2) — are in place; the validation checks
-themselves land in Steps 3–6.
+Early. The parser/IR (Step 1), the engine skeleton — result model, stable JSON
+contract, and CLI shell (Step 2) — and the first real checks, sequence integrity
+(Step 3: raster alignment, timing/duration, event legality, version/signature,
+definitions), are in place; the remaining checks land in Steps 4–6.
 
 ```console
 $ seq-validate scan.seq            # human report

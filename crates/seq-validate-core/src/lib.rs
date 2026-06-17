@@ -30,7 +30,9 @@ pub mod render;
 pub mod report;
 pub mod result;
 
-pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, TimeRaster, Version, raw_sections};
+mod integrity;
+
+pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
 pub use checks::{Check, CheckCtx};
 pub use render::render;

@@ -2,9 +2,10 @@
 //!
 //! A check is a small, self-identifying unit: it declares its [`Category`] and a
 //! `name`, and emits zero or more [`CheckResult`]s for a [`CheckCtx`]. The
-//! built-in [`registry`] lists the checks the engine runs; it is intentionally
-//! **empty** here — Step 2 (`docs/02-crate-skeleton.md`) locks this abstraction
-//! and the result/JSON contracts, and Steps 3–6 populate it.
+//! built-in [`registry`] lists the checks the engine runs; Step 2
+//! (`docs/02-crate-skeleton.md`) locked this abstraction and the result/JSON
+//! contracts, and Steps 3–6 populate it — Step 3 adds the sequence-integrity
+//! checks (the `integrity` module).
 //!
 //! There is no plugin / dynamic-loading machinery yet: that boundary is deferred
 //! until a few real specialized pipelines reveal the right seam (see the
@@ -50,10 +51,11 @@ pub trait Check {
 
 /// The checks the engine runs, in report order.
 ///
-/// Empty until Step 3. A new check is registered by pushing its boxed instance
-/// here; nothing else in the engine needs to change.
+/// Step 3 (`docs/03-integrity-checks.md`) fills it with the sequence-integrity
+/// checks; later steps concatenate their own category modules here. Nothing else
+/// in the engine needs to change when a check is added.
 pub fn registry() -> Vec<Box<dyn Check>> {
-    Vec::new()
+    crate::integrity::checks()
 }
 
 /// Run every registered check against `ctx`, concatenating their results in

@@ -1,7 +1,7 @@
-//! End-to-end CLI acceptance (docs/02-crate-skeleton.md): `seq-validate` runs to
-//! completion on the bundled v1.5.1 example, the human and `--json` forms are
-//! well-formed with zero checks, and the exit-code policy holds (0 on success,
-//! 2 on a harness/parse error).
+//! End-to-end CLI acceptance: `seq-validate` runs to completion on the bundled
+//! v1.5.1 example, the human and `--json` forms are well-formed and carry the
+//! Step-3 integrity results (which all pass on the clean example), and the
+//! exit-code policy holds (0 on success, 2 on a harness/parse error).
 #![allow(clippy::expect_used)] // test helper `run` intentionally panics on failure
 
 use std::process::Command;
@@ -30,17 +30,30 @@ fn run(args: &[&str]) -> (i32, String, String) {
 }
 
 #[test]
-fn human_report_on_example_exits_zero_with_zero_checks() {
+fn human_report_on_example_runs_integrity_checks() {
     let (code, stdout, _) = run(&[FIXTURE]);
-    assert_eq!(code, 0, "successful run must exit 0");
+    assert_eq!(code, 0, "all integrity checks pass on the example → exit 0");
     assert!(stdout.contains("Pulseq 1.5.1"), "stdout: {stdout}");
     assert!(stdout.contains("50688 blocks"), "stdout: {stdout}");
-    assert!(stdout.contains("No checks run."), "stdout: {stdout}");
-    assert!(stdout.contains("Summary: 0 passed, 0 failed, 0 warnings, 0 skipped"));
+    // Step 3 populates the registry: the integrity section and its checks render.
+    assert!(stdout.contains("Sequence integrity"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("integrity.raster_alignment"),
+        "stdout: {stdout}"
+    );
+    assert!(
+        !stdout.contains("No checks run."),
+        "checks now run: {stdout}"
+    );
+    // The example is clean: no failures or warnings, whatever the pass/skip mix.
+    assert!(
+        stdout.contains("0 failed, 0 warnings"),
+        "example is clean: {stdout}"
+    );
 }
 
 #[test]
-fn json_report_is_well_formed_with_zero_checks() {
+fn json_report_includes_integrity_results() {
     let (code, stdout, _) = run(&[FIXTURE, "--json"]);
     assert_eq!(code, 0);
     let v: Value = serde_json::from_str(&stdout).expect("--json emits valid JSON");
@@ -48,8 +61,15 @@ fn json_report_is_well_formed_with_zero_checks() {
     assert_eq!(v["error"], Value::Null);
     assert_eq!(v["sequence"]["pulseq_version"], "1.5.1");
     assert!(v["sequence"]["blocks"].as_u64().unwrap() > 0);
-    assert!(v["results"].as_array().unwrap().is_empty(), "zero checks");
-    assert_eq!(v["summary"]["total"], 0);
+
+    let results = v["results"].as_array().expect("results is an array");
+    assert!(!results.is_empty(), "integrity checks now produce results");
+    assert!(
+        results.iter().any(|r| r["id"] == "integrity.signature"),
+        "expected an integrity.signature result among: {results:#?}"
+    );
+    assert_eq!(v["summary"]["fail"], 0, "the example has no failures");
+    assert_eq!(v["summary"]["total"], results.len());
 }
 
 #[test]
