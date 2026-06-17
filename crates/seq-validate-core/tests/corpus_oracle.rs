@@ -1,4 +1,4 @@
-//! The generated-corpus oracle harness (`docs/04-derived-metrics.md`).
+//! The generated-corpus oracle for the derived metrics.
 //!
 //! Two-sided ground truth for every derived metric. For each committed corpus
 //! sequence under `corpus/data/` the validator's measurements are checked against:
@@ -27,8 +27,8 @@ use seq_validate_core::checks::run_all;
 use seq_validate_core::serde_json::{self, Value};
 use seq_validate_core::{CheckCtx, CheckResult, Sequence, Status};
 
-/// `(metric id, sidecar field, tolerance)`. Tolerances follow the harness
-/// `param_check.py` bands, in SI units: TE/TR/echo-spacing to 0.1 ms, flip to
+/// `(metric id, sidecar field, tolerance)`. Tolerance bands in SI units:
+/// TE/TR/echo-spacing to 0.1 ms, flip to
 /// 0.05°, slice count exact, scan time to 1 ms (testReport prints 6 decimals).
 const FIELDS: &[(&str, &str, f64)] = &[
     ("metrics.te", "te_s", 1e-4),
@@ -143,7 +143,7 @@ fn corpus_recovers_inputs_and_matches_self_report() {
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — dual-witness geometry (`docs/05-trajectory-geometry.md`).
+// Dual-witness geometry.
 // ---------------------------------------------------------------------------
 
 fn result<'a>(results: &'a [CheckResult], id: &str) -> Option<&'a CheckResult> {
@@ -183,7 +183,7 @@ fn f64_array(v: &Value, key: &str) -> Vec<f64> {
 /// The dual-witness geometry, checked against the known generation inputs
 /// (`matrix` / `fov_mm` in `params.json`).
 ///
-/// Two families of assertion, mirroring the Step 5 acceptance criteria:
+/// Two families of assertion:
 ///
 ///   1. **Cartesian families** (one ADC per excitation — `echo_spacing_s: null`):
 ///      the param-algebra witness (`metrics.matrix` / `metrics.fov`) recovers the

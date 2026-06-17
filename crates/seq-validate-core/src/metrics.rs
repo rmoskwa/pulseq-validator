@@ -1,4 +1,4 @@
-//! Step 4 — derived imaging metrics (`docs/04-derived-metrics.md`).
+//! Derived imaging metrics.
 //!
 //! The product's spine: the headline "what is this sequence?" numbers, measured
 //! from first principles off the interpreted IR.
@@ -14,7 +14,8 @@
 //! - **Echo spacing** — median centre-to-centre echo interval (echo trains only).
 //! - **Scan time** — total sequence duration.
 //!
-//! Geometry (FOV/matrix) is **not** here — it is the dual-witness Step 5.
+//! Geometry (FOV/matrix) is **not** here — it is the dual-witness
+//! trajectory/param reconciliation (see `crate::trajectory`).
 //!
 //! Units: times in SI **seconds** (matching the IR and Pulseq's own
 //! `testReport`), flip in **degrees**, counts as integers. These are
@@ -22,7 +23,8 @@
 //! carrying its `measured` value, or a `skip` when the sequence doesn't support
 //! it (echo-spacing for a single-echo sequence; TE/echo-spacing when no readout
 //! follows any excitation; everything but scan time when there is no excitation
-//! RF). Step 7 reuses the same measurements for hard spec assertions.
+//! RF). The optional spec-assert mode reuses the same measurements for hard
+//! spec assertions.
 //!
 //! All six share one analysis pass — [`excitations`] then [`echo_trains`] — so
 //! they live in a single [`DerivedMetrics`] check that emits one result per
@@ -40,7 +42,7 @@ pub(crate) fn checks() -> Vec<Box<dyn Check>> {
 }
 
 /// Minimum nominal flip [deg] for an RF event to count as a slice excitation.
-/// Excludes a near-zero-flip stray/spoiling pulse the harness also ignores.
+/// Excludes a near-zero-flip stray/spoiling pulse.
 /// Shared with the trajectory gate (`crate::trajectory`) so both modules agree on
 /// what an excitation is.
 pub(crate) const MIN_EXCITATION_FLIP_DEG: f64 = 1.0;
@@ -52,7 +54,7 @@ pub(crate) const MIN_EXCITATION_FLIP_DEG: f64 = 1.0;
 const FREQ_BUCKET_HZ: f64 = 1e-3;
 
 // ---------------------------------------------------------------------------
-// Measurement primitives (the `seq_file.py` helpers, ported)
+// Measurement primitives
 // ---------------------------------------------------------------------------
 
 /// Effective-rotation time of an RF event relative to its block start [s]:
@@ -98,7 +100,7 @@ pub(crate) fn flip_deg(rf: &Rf) -> f64 {
 /// — exactly the IR's [`Shape::interpolate`] convention. For a uniform centred
 /// shape this reproduces the midpoint rule (`Σ amp · raster`); for an explicit
 /// boundary grid (`[0, dur]`) it reproduces the plain trapezoid — the two cases
-/// the harness special-cased, unified.
+/// unified into one rule.
 #[allow(clippy::indexing_slicing)] // Shape invariants guarantee `time`/`amp` non-empty and equal length
 fn integrate<T>(shape: &Shape<T>) -> T
 where

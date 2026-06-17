@@ -3,9 +3,8 @@
 //! A single check produces one or more [`CheckResult`]s, each carrying a stable
 //! [`id`](CheckResult::id), an outcome [`Status`], a [`Severity`], an optional
 //! `measured`/`expected` pair, and a human `message`. This is the spec's exact
-//! six-field model (`docs/02-crate-skeleton.md`); it is the atom the JSON
-//! contract and the human renderer are built from, so its field set is treated
-//! as breaking to change.
+//! six-field model; it is the atom the JSON contract and the human renderer are
+//! built from, so its field set is treated as breaking to change.
 //!
 //! [`Category`] is **not** part of the serialized result: it is a presentation
 //! grouping derived from the `id` prefix (`integrity.raster_alignment` →
@@ -19,8 +18,7 @@ use serde_json::Value;
 ///
 /// `pass`/`fail` are the asserted outcomes; `warn` flags something noteworthy
 /// that is not a hard failure; `skip` records an inapplicable check (a
-/// first-class result, never a failure — see the dual-witness geometry note in
-/// `docs/00-overview.md`). Only `fail` drives a nonzero exit code.
+/// first-class result, never a failure). Only `fail` drives a nonzero exit code.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -127,8 +125,7 @@ impl CheckResult {
     }
 }
 
-/// A check category — the four families from `docs/00-overview.md`, plus an
-/// `Other` catch-all.
+/// A check category — the four families of checks, plus an `Other` catch-all.
 ///
 /// This is a **presentation grouping only**: it is derived from a result's `id`
 /// prefix ([`from_id`](Category::from_id)) and is not serialized. A check
@@ -144,8 +141,7 @@ pub enum Category {
     Trajectory,
     /// Hardware/safety limits against a scanner profile.
     Hardware,
-    /// Expected-spec assertions: measured metrics compared to a user spec
-    /// (`docs/07-spec-assert-mode.md`).
+    /// Expected-spec assertions: measured metrics compared to a user spec.
     Spec,
     /// Anything whose id prefix is unrecognized.
     Other,

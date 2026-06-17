@@ -5,8 +5,8 @@
 //!
 //! `sos-liver.seq` (stack-of-stars) was the lone holdout: its rotated readout
 //! mixes gradient axes with different shapes/delays, which the interpreter once
-//! rejected. Step 5 (`docs/05-trajectory-geometry.md`) implemented the general
-//! rotation path (resample the axes onto a common time grid, then mix), so every
+//! rejected. The general rotation path (resample the axes onto a common time
+//! grid, then mix) handles this, so every
 //! bundled fixture now interprets cleanly.
 
 use std::time::Instant;

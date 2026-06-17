@@ -1,4 +1,4 @@
-//! The JSON report is the integration contract (docs/02-crate-skeleton.md), so
+//! The JSON report is the integration contract, so
 //! it gets contract-grade tests: every emitted report — success, empty, and
 //! harness-error — validates against the published JSON Schema
 //! (`schema/report-v1.schema.json`), round-trips through serde unchanged, and
@@ -80,7 +80,7 @@ fn populated_report_is_schema_valid() {
 
 #[test]
 fn empty_report_is_schema_valid() {
-    // The Step 2 acceptance case: a well-formed report with zero checks.
+    // A well-formed report with zero checks.
     let report = Report::new("scan.seq", sample_meta(), vec![]);
     assert_schema_valid(&report);
 }

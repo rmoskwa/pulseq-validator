@@ -1,10 +1,10 @@
-//! Step 3 — sequence-integrity checks (`docs/03-integrity-checks.md`).
+//! Sequence-integrity checks.
 //!
 //! The cheapest, most certain checks: pure file/IR consistency, no scanner model
 //! and no imaging-physics knowledge. They are also *layered behind the parser* —
 //! the `pulseq-parse` model layer already rejects the structurally-broken files
 //! (dangling event/shape IDs, missing raster definitions, an event longer than
-//! its block, negative timings) as a parse/harness error before any check runs.
+//! its block, negative timings) as a parse error before any check runs.
 //! So these checks assert only on what *survives* parsing and is still suspect:
 //!
 //! - [`RasterAlignment`] — every event timing lands on its declared raster.
@@ -12,7 +12,7 @@
 //!   definition.
 //! - [`EventLegality`] — no block transmits and receives at once (RF during ADC).
 //! - [`DeadTime`] — RF ring-down / ADC dead-time (scanner-specific; deferred to
-//!   the Step 6 profile, reported here as a `skip`).
+//!   the scanner profile, reported here as a `skip`).
 //! - [`VersionCheck`] — the `[VERSION]` is one we understand.
 //! - [`SignatureCheck`] — the `[SIGNATURE]` md5, if present, recomputes.
 //! - [`Definitions`] — raster times are positive and FOV is present and positive.
@@ -195,7 +195,7 @@ impl Check for Timing {
 /// the same block. This is flagged as a `warn` (transmit-during-receive is
 /// usually a mistake, but the format permits it). Dangling event/shape references
 /// — the other half of "event legality" — cannot occur here: the parser resolves
-/// every reference before the IR exists, so an unresolved one is a harness error.
+/// every reference before the IR exists, so an unresolved one cannot reach here.
 struct EventLegality;
 
 impl Check for EventLegality {
@@ -239,7 +239,7 @@ impl Check for EventLegality {
 }
 
 /// RF ring-down and ADC dead-time are scanner-specific limits, not file
-/// properties, so the hard check lives in Step 6 against a scanner profile. Here
+/// properties, so the hard check lives against a scanner profile. Here
 /// it is honestly reported as a `skip` so the dimension is visible in the report.
 struct DeadTime;
 
@@ -253,7 +253,7 @@ impl Check for DeadTime {
     fn run(&self, _ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         vec![CheckResult::skip(
             self.id(),
-            "RF ring-down / ADC dead-time are scanner-specific; checked against a profile in Step 6",
+            "RF ring-down / ADC dead-time are scanner-specific; checked against a scanner profile",
         )]
     }
 }

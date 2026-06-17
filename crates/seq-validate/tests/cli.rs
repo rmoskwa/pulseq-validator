@@ -1,6 +1,6 @@
 //! End-to-end CLI acceptance: `seq-validate` runs to completion on the bundled
 //! v1.5.1 example, the human and `--json` forms are well-formed and carry the
-//! Step-3 integrity results (which all pass on the clean example), and the
+//! integrity results (which all pass on the clean example), and the
 //! exit-code policy holds (0 on success, 2 on a harness/parse error).
 #![allow(clippy::expect_used)] // test helper `run` intentionally panics on failure
 
@@ -35,7 +35,7 @@ fn human_report_on_example_runs_integrity_checks() {
     assert_eq!(code, 0, "all integrity checks pass on the example → exit 0");
     assert!(stdout.contains("Pulseq 1.5.1"), "stdout: {stdout}");
     assert!(stdout.contains("50688 blocks"), "stdout: {stdout}");
-    // Step 3 populates the registry: the integrity section and its checks render.
+    // The integrity section and its checks render from the registry.
     assert!(stdout.contains("Sequence integrity"), "stdout: {stdout}");
     assert!(
         stdout.contains("integrity.raster_alignment"),
@@ -167,7 +167,7 @@ fn missing_spec_file_is_a_harness_error_exit_two() {
 
 #[test]
 fn spec_scanner_field_selects_the_profile() {
-    // With no --profile, the spec's `scanner` drives the Step 6 hardware checks.
+    // With no --profile, the spec's `scanner` drives the hardware checks.
     let path = format!("{}/scanner.yaml", env!("CARGO_TARGET_TMPDIR"));
     std::fs::write(&path, "scanner: ge-premier\nte_ms: 4.008\n").unwrap();
     let (code, stdout, _) = run(&[FIXTURE, "--spec", &path]);

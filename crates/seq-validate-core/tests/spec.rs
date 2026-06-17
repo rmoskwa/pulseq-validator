@@ -1,4 +1,4 @@
-//! Step 7 — the expected-spec assert mode (`docs/07-spec-assert-mode.md`).
+//! Acceptance tests for the expected-spec assert mode.
 //!
 //! These exercise [`Spec::assert`] against the *real* file-only results of the
 //! bundled fixtures, so the unit conversions, oversampling division, and

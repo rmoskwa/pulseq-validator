@@ -1,4 +1,4 @@
-//! Acceptance tests for Step 3 (`docs/03-integrity-checks.md`).
+//! Acceptance tests for the integrity checks.
 //!
 //! Strategy: a tiny, fully-controlled synthetic v1.5.1 sequence ([`BASE`]) that
 //! passes every integrity check, then a hand-corruption per acceptance case —

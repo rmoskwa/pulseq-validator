@@ -1,4 +1,4 @@
-//! Step 5 — trajectory gate + dual-witness geometry (`docs/05-trajectory-geometry.md`).
+//! Trajectory gate + dual-witness geometry.
 //!
 //! A `.seq`'s real geometry lives in its gradients. Integrating them — `k(t) =
 //! ∫ G·dt`, in 1/m (Pulseq gradients are already in Hz/m, so no γ is needed) — is
@@ -9,7 +9,7 @@
 //!
 //! Two witnesses, reconciled:
 //!
-//! - **Param-algebra** (the Step-4 sibling, emitted as `metrics.fov` /
+//! - **Param-algebra** (the `metrics` sibling, emitted as `metrics.fov` /
 //!   `metrics.matrix`): measures FOV/matrix from the readout gradient + ADC and
 //!   the phase/partition-encode area steps — but **only** when the single-readout-
 //!   per-excitation Cartesian model holds (one ADC per excitation, a flat readout
@@ -22,7 +22,7 @@
 //!   It owns geometry whenever the param-algebra `skip`s, and the two are
 //!   reconciled (`trajectory.geometry_agreement`) wherever both apply.
 //!
-//! Unlike the Python harness (`kspace.py`), we integrate the **interpreted**
+//! Unlike a naive replay of the raw file, we integrate the **interpreted**
 //! gradients, which the parser has *already rotated* per each block's `ROTATIONS`
 //! extension — so a PROPELLER blade or a radial spoke fans out without us
 //! re-applying any rotation matrix here.
@@ -30,7 +30,8 @@
 //! These are measurements, not pass/fail assertions: in file-only mode each is a
 //! `pass` carrying its `measured` value or a `skip` when inapplicable; the lone
 //! exception is the dual-witness reconciliation, which `warn`s if the two
-//! witnesses disagree. Step 7 reuses the same measurements for spec assertions.
+//! witnesses disagree. The optional spec-assert mode reuses the same
+//! measurements for spec assertions.
 
 use serde_json::Value;
 
@@ -44,7 +45,7 @@ pub(crate) fn checks() -> Vec<Box<dyn Check>> {
     vec![Box::new(TrajectoryGeometry)]
 }
 
-// --- thresholds (ported from the harness `sim_traj.py`) ----------------------
+// --- thresholds ------------------------------------------------------------
 
 /// No-encoding floor [1/m]: a trajectory whose largest axis spans less than this
 /// does not sweep k-space beyond numerical jitter (a non-imaging sequence).
@@ -407,7 +408,7 @@ fn measure(kspace: &[[f64; 3]]) -> TrajMeas {
     }
 }
 
-// --- param-algebra geometry (ported from `param_check.py::measure`) ----------
+// --- param-algebra geometry ------------------------------------------------
 
 /// FOV/matrix measured by the Cartesian area-algebra. Only produced when the
 /// single-readout-per-excitation Cartesian model holds.
@@ -678,7 +679,7 @@ fn dimensionality_result(meas: &TrajMeas) -> CheckResult {
         .filter(|(a, _)| a.present)
         .map(|(_, n)| n)
         .collect();
-    // The 2D-vs-3D headline is the kz-presence test (`docs/05`): 3D iff kz encodes.
+    // The 2D-vs-3D headline is the kz-presence test: 3D iff kz encodes.
     let dims = if meas.is_3d { 3u64 } else { 2 };
     CheckResult::pass(
         "trajectory.dimensionality",

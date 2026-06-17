@@ -1,9 +1,8 @@
 //! `seq-validate-core` — the Pulseq `.seq` validator engine.
 //!
-//! Step 1 (`docs/01-vendor-parser.md`) established the foundation every check
-//! sits on: a **stable interpreted IR** built on our [`pulseq_parse`] parser
-//! ([`ir`]). Step 2 (`docs/02-crate-skeleton.md`) adds the surfaces every check
-//! plugs into, before any real check exists:
+//! The foundation every check sits on is a **stable interpreted IR** built on
+//! our [`pulseq_parse`] parser ([`ir`]). On top of it sit the surfaces every
+//! check plugs into:
 //!
 //! - the [`result`] model — [`CheckResult`] (`status`/`severity`/`measured`/…),
 //! - the [`checks`] abstraction — a discrete [`Check`] unit + an (empty) registry,
@@ -11,7 +10,8 @@
 //! - the human [`render`]er.
 //!
 //! The thin `seq-validate` binary crate drives this library and applies the
-//! exit-code policy ([`Report::exit_code`]). Steps 3–6 populate the registry.
+//! exit-code policy ([`Report::exit_code`]). The category modules populate the
+//! registry.
 //!
 //! ```no_run
 //! use seq_validate_core::{checks, Report, Sequence};

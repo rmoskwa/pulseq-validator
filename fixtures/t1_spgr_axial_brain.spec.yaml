@@ -1,10 +1,10 @@
 # Expected-value spec matching the bundled example, t1_spgr_axial_brain.seq.
-# Used by the Step 7 acceptance test: every provided field is within tolerance, so
-# `seq-validate t1_spgr_axial_brain.seq --spec this` passes (exit 0). The format is
-# the pulsepal-harness schema; only the fields below are checked (lenient policy).
+# Every provided field is within tolerance, so
+# `seq-validate t1_spgr_axial_brain.seq --spec this` passes (exit 0). Only the
+# fields below are checked (lenient policy).
 name: t1-spgr-axial-brain
 
-# scanner selects the bundled hardware profile for the Step 6 safety checks.
+# scanner selects the bundled hardware profile for the safety checks.
 scanner: ge-premier
 
 # RF / timing (effective k-centre TE; TR; excitation flip; slice count).

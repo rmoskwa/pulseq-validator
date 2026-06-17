@@ -1,4 +1,4 @@
-//! Step 6 — hardware/safety checks against a scanner [`Profile`] (`docs/06`).
+//! Hardware/safety checks against a scanner [`Profile`].
 //!
 //! These are the first checks that need a scanner model: the `.seq` file does not
 //! carry its target's amplifier, RF and PNS limits, so a [`Profile`] supplies
@@ -17,9 +17,9 @@
 //! - `gradient_amplitude` / `slew_rate` — the per-axis peak is the hard limit
 //!   (`fail`); the combined vector magnitude is reported alongside it as an
 //!   informational `measured` value. It is *not* checked against the per-axis
-//!   limit: per-axis-limited amplifiers (the dominant architecture, and all the
-//!   harness's `pge2` checks) may legitimately drive every axis to its own max at
-//!   once, so "combined ≤ per-axis limit" would false-positive on normal
+//!   limit: per-axis-limited amplifiers (the dominant architecture) may
+//!   legitimately drive every axis to its own max at once, so
+//!   "combined ≤ per-axis limit" would false-positive on normal
 //!   sequences. A future profile with a distinct combined limit can add that check.
 //! - `adc_dwell` — the ADC dwell must divide the scanner's ADC raster.
 //! - `rf_b1` — peak B1 within `B1max`.
@@ -46,7 +46,7 @@ pub(crate) fn checks() -> Vec<Box<dyn Check>> {
 /// when it clears the limit by more than this, so a value sitting exactly on the
 /// limit (floating-point noise aside) is not a false `fail`.
 const REL_TOL: f64 = 1e-6;
-/// Timing slack for dead-time comparisons [s] (matches the harness `eps`).
+/// Timing slack for dead-time comparisons [s].
 const TIMING_TOL_S: f64 = 1e-7;
 /// Quotient tolerance for the ADC-dwell-divides-raster test.
 const RASTER_TOL: f64 = 1e-6;
@@ -262,8 +262,7 @@ fn argmax3(v: [f64; 3]) -> usize {
 // --- PNS (approximate) -------------------------------------------------------
 
 /// Per-axis peak PNS [% of stimulation threshold] and the block each peak is in,
-/// from the IEC 60601-2-33:2022 nerve-impulse-response model (Eq. AA.21), seeded
-/// from the harness `pge2.pns`.
+/// from the IEC 60601-2-33:2022 nerve-impulse-response model (Eq. AA.21).
 ///
 /// **This is the single-ramp closed form, not the full convolution.** For one
 /// constant-slew ramp of slew `SR` and duration `τ`, the model's response peaks at
@@ -332,7 +331,7 @@ impl Check for Hardware {
 }
 
 /// `hardware.profile` when none was resolved: a clear, non-silent `skip` naming
-/// the missing input and how to supply it (`docs/06` acceptance).
+/// the missing input and how to supply it.
 fn no_profile_result() -> CheckResult {
     CheckResult::skip(
         "hardware.profile",
@@ -607,7 +606,7 @@ fn dead_time_result(seq: &Sequence, p: &Profile) -> CheckResult {
 /// `hardware.pns` — a basic, **approximate** PNS estimate (see [`pns_stats`]).
 /// Reported as `warn` past the IEC normal (80 %) / first-controlled (100 %) modes,
 /// never `fail`: it is a conservative proxy, not a certifying calculation
-/// (`docs/06`: "reported as warn unless a profile defines a hard limit"). `skip`s
+/// ("reported as warn unless a profile defines a hard limit"). `skip`s
 /// when the profile carries no PNS model.
 #[allow(clippy::indexing_slicing)] // length-3 axis arrays
 fn pns_result(seq: &Sequence, p: &Profile) -> CheckResult {

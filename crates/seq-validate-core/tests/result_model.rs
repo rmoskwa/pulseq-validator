@@ -1,4 +1,4 @@
-//! The result model and exit-code policy (docs/02-crate-skeleton.md), against
+//! The result model and exit-code policy, against
 //! synthetic results: `0` if no `fail`, `1` on any `fail`, `2` on a
 //! harness/parse error; `warn`/`skip` never fail the run.
 

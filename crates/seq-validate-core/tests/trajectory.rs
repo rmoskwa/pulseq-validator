@@ -1,4 +1,4 @@
-//! Step 5 fixture pins (`docs/05-trajectory-geometry.md`).
+//! Trajectory fixture pins.
 //!
 //! Real-sequence checks for the trajectory gate + dual-witness geometry on the
 //! bundled fixtures, complementing the synthetic unit tests in `trajectory.rs`

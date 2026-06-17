@@ -1,4 +1,4 @@
-//! The human renderer (docs/02-crate-skeleton.md): grouped by category,
+//! The human renderer: grouped by category,
 //! colorized, and well-formed for the zero-checks case.
 
 use seq_validate_core::{CheckResult, Report, SequenceMeta, render};

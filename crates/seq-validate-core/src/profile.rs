@@ -1,11 +1,11 @@
-//! Step 6 — the scanner-profile subsystem (`docs/06-scanner-hardware.md`).
+//! The scanner-profile subsystem.
 //!
 //! A [`Profile`] is a curated, **sourced and versioned** set of per-scanner
 //! hardware limits the `.seq` file does not itself carry: peak gradient / slew,
 //! peak B1, the hardware raster grid, RF/ADC dead times, and (where modelled) the
 //! PNS coil parameters. The hardware/safety checks (`crate::hardware`) validate a
 //! sequence against the resolved profile; with no profile they `skip`, because a
-//! wrong scanner must never be silently assumed (`docs/06`).
+//! wrong scanner must never be silently assumed.
 //!
 //! Profiles are bundled as Rust data rather than loaded from disk: the citation
 //! for every number lives in the doc-comment beside it (the acceptance criterion
@@ -14,7 +14,7 @@
 //! "this one field differs on my system" case curation can't anticipate. A future
 //! step that loads external profile/spec YAML can reuse this same type.
 //!
-//! ## Resolution order (`docs/06`)
+//! ## Resolution order
 //!
 //! [`resolve`] implements it: an explicit `--profile <name>` wins; else hardware
 //! limits embedded in the file's `[DEFINITIONS]` ([`Profile::from_definitions`]);
@@ -83,9 +83,9 @@ impl Profile {
         &["ge-premier", "generic-3t"]
     }
 
-    /// Look up a bundled profile by its [`name`](Profile::name). The harness spec
+    /// Look up a bundled profile by its [`name`](Profile::name). The spec
     /// stems `generic` / `default` are accepted as aliases for `generic-3t`, so a
-    /// spec authored against the harness profile names loads unmodified (`docs/07`).
+    /// spec that names the profile either way loads unmodified.
     pub fn by_name(name: &str) -> Option<Profile> {
         match name {
             "ge-premier" => Some(ge_premier()),
@@ -172,7 +172,7 @@ impl Profile {
 }
 
 /// Resolve the profile for a run from the explicit `--profile` name (if any) and
-/// the file, per the `docs/06` resolution order. `Ok(None)` means no profile was
+/// the file, per the resolution order. `Ok(None)` means no profile was
 /// selected and none was embedded — the caller runs the checks anyway and they
 /// `skip`. An explicit but unknown name is an `Err` (never a silent fallback).
 pub fn resolve(name: Option<&str>, seq: &Sequence) -> Result<Option<Profile>, String> {
@@ -218,7 +218,7 @@ fn ge_premier() -> Profile {
     }
 }
 
-/// A vendor-neutral 3 T profile (`docs/06` task: "add a Generic 3T"). The limits
+/// A vendor-neutral 3 T profile. The limits
 /// and raster grid are the Pulseq toolbox `mr.opts()` defaults; only B0 is set to
 /// 3 T. Simulation-oriented (no PNS model) and deliberately conservative — not a
 /// substitute for a real scanner's safety limits.

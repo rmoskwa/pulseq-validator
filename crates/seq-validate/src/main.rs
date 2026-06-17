@@ -11,12 +11,12 @@
 //! seq-validate <file.seq> [--json] [-v|--verbose] [--profile <name>] [--set field=value]... [--spec <spec.yaml>]
 //! ```
 //!
-//! `--profile` selects the scanner [`Profile`] for the hardware/safety checks
-//! (Step 6); `--set field=value` overrides one of its limits (repeatable). With no
+//! `--profile` selects the scanner [`Profile`] for the hardware/safety checks;
+//! `--set field=value` overrides one of its limits (repeatable). With no
 //! `--profile` and no limits embedded in the file's `[DEFINITIONS]`, the hardware
 //! checks `skip`. The human report shows the prose message per check; `--verbose`
 //! also appends each check's structured `measured`/`expected` data inline (always
-//! present in `--json`). `--spec <spec.yaml>` (Step 7) asserts the measured metrics
+//! present in `--json`). `--spec <spec.yaml>` asserts the measured metrics
 //! against an expected-value spec: each provided field becomes a `spec.*` check and
 //! the run exits nonzero if any asserted field is out of tolerance.
 
@@ -112,7 +112,7 @@ fn build_report(cli: &Cli, file_label: String) -> Report {
     Report::for_sequence(file_label, &seq, results)
 }
 
-/// Resolve the scanner profile per `docs/06`: the `--profile` name, else the
+/// Resolve the scanner profile: the `--profile` name, else the
 /// spec's `scanner` field, else embedded `[DEFINITIONS]` limits — then any `--set
 /// field=value` overrides. An unknown profile name, a malformed `--set`, or an
 /// override with no base profile is an error (surfaced as a harness error → exit

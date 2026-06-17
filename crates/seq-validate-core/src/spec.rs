@@ -1,31 +1,31 @@
-//! Step 7 — the optional expected-value spec assert mode (`docs/07-spec-assert-mode.md`).
+//! The optional expected-value spec assert mode.
 //!
 //! The file-only checks answer "what is this sequence?"; a spec answers "did I
 //! build what I intended?" — the sharp pass/fail for CI and for AI tools that
-//! emit a target spec alongside a build. A [`Spec`] is the harness YAML format
+//! emit a target spec alongside a build. A [`Spec`] is the YAML format
 //! (`te_ms` / `tr_ms` / `flip_angle_deg` / `n_slices` / `echo_spacing_ms` /
 //! `fov_mm[xyz]` / `matrix[xyz]` / `oversampling` / `scanner`); each field the
 //! user provides becomes a `spec.*` [`CheckResult`] whose `measured` is reused
-//! from the Step 4–6 results and whose status is the tolerance comparison.
+//! from the measured metrics/trajectory/hardware results and whose status is the tolerance comparison.
 //!
-//! Two policy choices distinguish this from the harness `param_check.py`:
+//! Two deliberate policy choices keep the assertion lenient:
 //!
-//! - **Lenient** (`docs/07`): only the fields the user provides are checked; an
-//!   absent field is silently not-asserted. The harness's "required-or-`none`"
-//!   (Option B) is deliberately relaxed — but the literal `none` (and YAML null)
-//!   still parse as an explicit opt-out, so harness specs load unmodified.
+//! - **Lenient**: only the fields the user provides are checked; an
+//!   absent field is silently not-asserted. A "required-or-`none`"
+//!   policy is deliberately relaxed — but the literal `none` (and YAML null)
+//!   still parse as an explicit opt-out, so such specs load unmodified.
 //! - **A spec field that is provided but cannot be measured** (e.g. echo spacing
 //!   on a single-echo sequence, or a geometry axis no witness pins) is a `skip`,
 //!   not a `fail`: a first-class non-failing result. The exit code is nonzero
 //!   **iff** an asserted field is measured and out of tolerance.
 //!
-//! Geometry honors the dual-witness (`docs/05`): an axis is asserted against the
+//! Geometry honors the dual-witness: an axis is asserted against the
 //! param-algebra (`metrics.matrix` / `metrics.fov`) when it applies (Cartesian),
 //! else the trajectory gate (`trajectory.matrix` / `trajectory.fov`). The
 //! declared per-axis `oversampling` is divided out of the *physical* measured
 //! count/FOV before comparing to the spec's nominal value.
 //!
-//! `scanner` selects the Step 6 [`crate::profile::Profile`]; it is an input, not
+//! `scanner` selects the scanner [`crate::profile::Profile`]; it is an input, not
 //! an asserted field, so it produces no `spec.*` result (the CLI resolves it).
 
 use std::collections::BTreeMap;
@@ -38,8 +38,8 @@ use crate::result::{CheckResult, Status};
 
 /// A per-field tolerance. `Abs` is an absolute band in the field's own unit,
 /// `Rel` a fraction of the expected magnitude, `Exact` strict equality (matrix
-/// counts and the slice count). Defaults are seeded from the harness
-/// (`param_check.py`); a spec may override any field (see [`Spec::tolerances`]).
+/// counts and the slice count). Defaults are seeded from the reference
+/// implementation; a spec may override any field (see [`Spec::tolerances`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Tolerance {
     /// `|measured − expected| ≤ x`, in the field's unit.
@@ -76,8 +76,8 @@ impl Tolerance {
     }
 }
 
-/// The default tolerance for a `spec.*` field key, seeded from the harness
-/// `param_check.py` tolerance table.
+/// The default tolerance for a `spec.*` field key, seeded from the reference
+/// implementation's tolerance table.
 fn default_tolerance(field: &str) -> Tolerance {
     match field {
         "te_ms" | "tr_ms" | "echo_spacing_ms" => Tolerance::Abs(0.1),
@@ -92,7 +92,7 @@ fn default_tolerance(field: &str) -> Tolerance {
 /// A parsed expected-value spec.
 ///
 /// Build with [`from_yaml_file`](Spec::from_yaml_file) / [`from_yaml_str`](Spec::from_yaml_str)
-/// (a malformed spec is a `String` error → the CLI turns it into an exit-2 harness
+/// (a malformed spec is a `String` error → the CLI turns it into an exit-2
 /// error), then run [`assert`](Spec::assert) against the file-only check results.
 /// Every numeric field is `Option`: `None` means absent / opted-out (the literal
 /// `none` or YAML null) and is simply not asserted.
@@ -115,7 +115,7 @@ pub struct Spec {
     /// `[x, y, z]` per-axis oversampling factor (divided out of the measured
     /// geometry before comparison). Absent / `none` → `[1, 1, 1]`.
     pub oversampling: [f64; 3],
-    /// Scanner profile stem (selects the Step 6 profile); an input, not asserted.
+    /// Scanner profile stem (selects the scanner profile); an input, not asserted.
     pub scanner: Option<String>,
     /// Per-field tolerance overrides, keyed by `spec.*` field name (e.g.
     /// `te_ms`, `fov_mm_x`, `matrix_y`); fields absent here use [`default_tolerance`].
@@ -130,7 +130,7 @@ impl Spec {
         Spec::from_yaml_str(&text)
     }
 
-    /// Parse a spec from a YAML string. Unknown keys (the harness's free-form
+    /// Parse a spec from a YAML string. Unknown keys (free-form
     /// authoring guidance) are ignored; a wrong-typed known key is an error.
     pub fn from_yaml_str(text: &str) -> Result<Spec, String> {
         let yaml: Yaml = serde_yaml::from_str(text).map_err(|e| format!("invalid YAML: {e}"))?;
@@ -166,7 +166,7 @@ impl Spec {
 
     /// Assert every provided field against the file-only check results, emitting
     /// one `spec.*` [`CheckResult`] per provided field. `measured` is reused from
-    /// the Step 4–6 results (no re-measurement); a field whose source metric was
+    /// the measured metrics/trajectory/hardware results (no re-measurement); a field whose source metric was
     /// not measured `skip`s.
     pub fn assert(&self, results: &[CheckResult]) -> Vec<CheckResult> {
         let mut out = Vec::new();
@@ -662,7 +662,7 @@ mod tests {
 
     #[test]
     fn unknown_keys_and_nested_blocks_are_ignored() {
-        // The harness specs carry free-form `acquisition:` / `notes:` blocks and a
+        // Real-world specs often carry free-form `acquisition:` / `notes:` blocks and a
         // `name:`; none of them are gated, so the spec must load and ignore them.
         let yaml = "\
 name: propeller

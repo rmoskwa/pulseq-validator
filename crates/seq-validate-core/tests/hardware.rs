@@ -1,4 +1,4 @@
-//! Step 6 acceptance (`docs/06-scanner-hardware.md`): the hardware/safety checks
+//! Acceptance tests for the hardware/safety checks: they
 //! produce the correct `fail` — with the offending value and the limit — when a
 //! synthetic sequence exceeds gradient amplitude, slew, B1, ADC dwell, dead time,
 //! or PNS, and `skip` cleanly when no profile is selected. The amplitude/slew/B1
@@ -227,7 +227,7 @@ fn dead_time_violation_fails() {
 fn pns_over_threshold_warns_never_fails() {
     // A steep, long ramp drives the PNS proxy past 100%. With amplitude/slew
     // limits raised out of the way, only the PNS estimate reacts — and it `warn`s,
-    // never `fail`s (it is an approximate proxy, docs/06).
+    // never `fail`s (it is an approximate proxy).
     let g = trap_gx(grad_hz(150.0), 1e-3, 0.0);
     let mut b = empty_block(2e-3);
     b.gx = Some(g);

@@ -2,16 +2,14 @@
 //!
 //! A check is a small, self-identifying unit: it declares its [`Category`] and a
 //! `name`, and emits zero or more [`CheckResult`]s for a [`CheckCtx`]. The
-//! built-in [`registry`] lists the checks the engine runs; Step 2
-//! (`docs/02-crate-skeleton.md`) locked this abstraction and the result/JSON
-//! contracts, and Steps 3–6 populate it — Step 3 adds the sequence-integrity
-//! checks (the `integrity` module).
+//! built-in [`registry`] lists the checks the engine runs. This abstraction and
+//! the result/JSON contracts are stable; the category modules (such as the
+//! `integrity` module) populate the registry.
 //!
 //! There is no plugin / dynamic-loading machinery yet: that boundary is deferred
-//! until a few real specialized pipelines reveal the right seam (see the
-//! deferred-modularity decision in `docs/00-overview.md`). A monolithic registry
-//! of discrete trait objects is enough, and extracting a plugin trait from it
-//! later is a cheap refactor.
+//! until a few real specialized pipelines reveal the right seam. A monolithic
+//! registry of discrete trait objects is enough, and extracting a plugin trait
+//! from it later is a cheap refactor.
 
 use crate::ir::Sequence;
 use crate::profile::Profile;
@@ -19,10 +17,10 @@ use crate::result::{Category, CheckResult};
 
 /// Everything a check may inspect.
 ///
-/// The interpreted [`Sequence`] plus the resolved scanner [`Profile`] (Step 6;
-/// `None` in file-only mode, when the hardware checks `skip`). Step 7 adds the
-/// optional expected-spec as a further field here, so the [`Check::run`] signature
-/// never changes as inputs accrue.
+/// The interpreted [`Sequence`] plus the resolved scanner [`Profile`]
+/// (`None` in file-only mode, when the hardware checks `skip`). Further inputs
+/// (such as an optional expected-spec) are added as additional fields here, so
+/// the [`Check::run`] signature never changes as inputs accrue.
 pub struct CheckCtx<'a> {
     /// The interpreted sequence under validation.
     pub seq: &'a Sequence,
@@ -55,11 +53,9 @@ pub trait Check {
 
 /// The checks the engine runs, in report order.
 ///
-/// Step 3 (`docs/03-integrity-checks.md`) adds the sequence-integrity checks,
-/// Step 4 (`docs/04-derived-metrics.md`) the derived-metrics check, Step 5
-/// (`docs/05-trajectory-geometry.md`) the trajectory gate + dual-witness geometry,
-/// and Step 6 (`docs/06-scanner-hardware.md`) the hardware/safety checks; later
-/// steps concatenate their own category modules here. Nothing else in the engine
+/// The sequence-integrity checks, the derived-metrics check, the trajectory gate
+/// with dual-witness geometry, and the hardware/safety checks each contribute
+/// their own category module, concatenated here. Nothing else in the engine
 /// needs to change when a check is added.
 pub fn registry() -> Vec<Box<dyn Check>> {
     let mut checks = crate::integrity::checks();

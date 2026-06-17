@@ -1,5 +1,4 @@
-//! Acceptance tests for Step 4 (`docs/04-derived-metrics.md`) — the derived
-//! imaging metrics.
+//! Acceptance tests for the derived imaging metrics.
 //!
 //! Two strategies, mirroring `integrity.rs`:
 //!
@@ -13,8 +12,7 @@
 //!     metrics are sane and pinned (criterion 1), and the echo-train fixtures
 //!     (HASTE, PROPELLER) confirm the effective TE lands on the mid-train
 //!     k-space-centre echo, not the first echo (criterion 3). Every fixture value
-//!     here was cross-checked against the pulsepal harness `param_check.py`
-//!     reference to floating-point agreement.
+//!     here is pinned as a regression baseline.
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -289,8 +287,7 @@ fn no_excitation_skips_everything_but_scan_time() {
 }
 
 /// Criterion 1: the example file's metrics are sane and pinned. These values
-/// agree with the pulsepal harness `param_check.py` reference to within
-/// floating-point dust; they are the documented baseline for the example.
+/// are the documented regression baseline for the example.
 #[test]
 fn example_metrics_are_sane_and_pinned() {
     let r = results_for_fixture("t1_spgr_axial_brain");

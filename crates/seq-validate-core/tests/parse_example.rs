@@ -1,4 +1,4 @@
-//! Acceptance tests for Step 1 (docs/01-vendor-parser.md) against the bundled
+//! Acceptance tests for the vendor parser against the bundled
 //! v1.5.1 example, `fixtures/t1_spgr_axial_brain.seq`:
 //!
 //!   * the example parses with no errors (and no interpreter warnings),
