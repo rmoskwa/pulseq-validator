@@ -16,7 +16,7 @@ versioned limit set) and the safety checks that use it.
       times, min dead/ring-down times, gradient/RF coil constraints, PNS model
       params.
 - [ ] **Bundled profiles**: seed `GE` from harness `emit_sys_ge.py`; add a
-      `Generic 3T` and at least one Siemens profile. Each profile is **sourced
+      `Generic 3T`. Each profile is **sourced
       and versioned** (cite the origin of every number).
 - [ ] **Resolution order**: explicit `--profile <name>` / spec `scanner` field →
       limits in the `.seq` `[DEFINITIONS]` if present → error/`skip` if none
@@ -44,8 +44,6 @@ versioned limit set) and the safety checks that use it.
 
 - pulsepal harness `emit_sys.py` / `emit_sys_ge.py` — per-vendor system limits
   (our code) — the seed for profiles.
-- Vendor documentation / Pulseq community for limit values (cite in profile
-  files).
 
 ## Risks / notes
 
