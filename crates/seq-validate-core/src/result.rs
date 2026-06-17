@@ -138,7 +138,7 @@ impl CheckResult {
 pub enum Category {
     /// Raster alignment, block/timing consistency, overlaps, version sanity.
     Integrity,
-    /// Derived imaging metrics: TE, TR, flip angle, FOV, matrix, contrast, …
+    /// Derived imaging metrics: TE, TR, flip angle, FOV, matrix, …
     Metrics,
     /// K-space trajectory extent/coverage/uniformity, 2D-vs-3D.
     Trajectory,

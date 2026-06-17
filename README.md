@@ -2,7 +2,7 @@
 
 A Rust-first, clean-room validator for Pulseq `*.seq` files. Supply a `.seq`
 file, get a quantitative report of its imaging metrics (TE, TR, FOV, matrix,
-contrast, k-space trajectory) plus hardware-safety and integrity checks —
+k-space trajectory) plus hardware-safety and integrity checks —
 optionally asserted against an expected-value spec for CI gating.
 
 v1 is **static/analytic only** (no Bloch simulation). A physics simulator is a

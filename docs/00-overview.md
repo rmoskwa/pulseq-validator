@@ -22,9 +22,7 @@ Released under a **permissive license (MIT or Apache-2.0)**.
 No Bloch simulation in v1. Four check categories ship:
 
 1. **Derived imaging metrics** — TE (k-centre effective TE), TR, flip angle,
-   n_slices, echo spacing, FOV, matrix, in-plane resolution, scan time, and a
-   **heuristic contrast/weighting label** (inferred from TE/TR/FA/prep — not
-   measured).
+   n_slices, echo spacing, FOV, matrix, in-plane resolution, scan time.
 2. **K-space trajectory analysis** — `k = ∫G·dt`; extent/coverage, sampling
    uniformity, 2D-vs-3D detection. Dimension-general: follows permuted /
    non-Cartesian readouts and applies block rotation extensions.
