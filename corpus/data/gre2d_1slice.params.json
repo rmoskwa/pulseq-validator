@@ -5,6 +5,16 @@
   "tr_s": 0.05,
   "te_s": 0.01,
   "echo_spacing_s": null,
+  "matrix": [
+    32,
+    32,
+    1
+  ],
+  "fov_mm": [
+    200,
+    200,
+    5
+  ],
   "name": "gre2d_1slice",
   "scan_time_s": 1.5999999999999996
 }

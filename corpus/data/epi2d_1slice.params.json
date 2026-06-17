@@ -5,6 +5,16 @@
   "tr_s": null,
   "te_s": null,
   "echo_spacing_s": 0.00055000000000000014,
+  "matrix": [
+    32,
+    32,
+    1
+  ],
+  "fov_mm": [
+    220,
+    220,
+    3
+  ],
   "name": "epi2d_1slice",
   "scan_time_s": 0.021510000000000022
 }

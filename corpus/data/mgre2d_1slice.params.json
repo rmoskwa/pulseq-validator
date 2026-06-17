@@ -5,6 +5,16 @@
   "tr_s": null,
   "te_s": 0.005,
   "echo_spacing_s": 0.0016400000000000002,
+  "matrix": [
+    32,
+    32,
+    1
+  ],
+  "fov_mm": [
+    200,
+    200,
+    5
+  ],
   "name": "mgre2d_1slice",
   "scan_time_s": 3.185280000000001
 }

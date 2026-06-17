@@ -5,6 +5,16 @@
   "tr_s": 0.02,
   "te_s": 0.008,
   "echo_spacing_s": null,
+  "matrix": [
+    16,
+    16,
+    8
+  ],
+  "fov_mm": [
+    192,
+    192,
+    96
+  ],
   "name": "gre3d_8part",
   "scan_time_s": 2.5599999999999894
 }

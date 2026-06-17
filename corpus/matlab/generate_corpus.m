@@ -159,7 +159,8 @@ function [seq, p] = build_gre(sys, o)
     end
     seq.setDefinition('FOV', [fov fov thk]);
     p = struct('family','gre2d', 'flip_deg',o.flip, 'n_slices',o.Nslices, ...
-        'tr_s',o.TR, 'te_s',o.TE, 'echo_spacing_s',NaN);
+        'tr_s',o.TR, 'te_s',o.TE, 'echo_spacing_s',NaN, ...
+        'matrix',[Nx Ny 1], 'fov_mm',[fov fov thk]*1e3);
 end
 
 function [seq, p] = build_gre3d(sys)
@@ -197,7 +198,8 @@ function [seq, p] = build_gre3d(sys)
     end
     seq.setDefinition('FOV', fov);
     p = struct('family','gre3d', 'flip_deg',flip, 'n_slices',1, ...
-        'tr_s',TR, 'te_s',TE, 'echo_spacing_s',NaN);
+        'tr_s',TR, 'te_s',TE, 'echo_spacing_s',NaN, ...
+        'matrix',[Nx Ny Nz], 'fov_mm',fov*1e3);
 end
 
 function [seq, p] = build_mgre(sys)
@@ -239,7 +241,8 @@ function [seq, p] = build_mgre(sys)
     % middle echo; our effective TE is the first (k-centre) echo, so the oracle TE
     % is not comparable here (the generated TE1 is the ground truth instead).
     p = struct('family','mgre2d', 'flip_deg',flip, 'n_slices',1, ...
-        'tr_s',NaN, 'te_s',TE1, 'echo_spacing_s',esp, 'cmp_oracle_te',false);
+        'tr_s',NaN, 'te_s',TE1, 'echo_spacing_s',esp, 'cmp_oracle_te',false, ...
+        'matrix',[Nx Ny 1], 'fov_mm',[fov fov thk]*1e3);
 end
 
 function [seq, p] = build_epi(sys, Nslices)
@@ -280,7 +283,8 @@ function [seq, p] = build_epi(sys, Nslices)
     % per-slice TR falls back to the whole-scan duration; not comparable, so the
     % oracle TR is suppressed (TE, however, is the central-ky echo and is checked).
     p = struct('family','epi2d', 'flip_deg',90, 'n_slices',Nslices, ...
-        'tr_s',NaN, 'te_s',NaN, 'echo_spacing_s',esp, 'cmp_oracle_tr',false);
+        'tr_s',NaN, 'te_s',NaN, 'echo_spacing_s',esp, 'cmp_oracle_tr',false, ...
+        'matrix',[Nx Ny 1], 'fov_mm',[fov fov thk]*1e3);
 end
 
 function [seq, p] = build_se(sys)
@@ -321,5 +325,6 @@ function [seq, p] = build_se(sys)
     end
     seq.setDefinition('FOV', [fov fov thk]);
     p = struct('family','se2d', 'flip_deg',90, 'n_slices',1, ...
-        'tr_s',TR, 'te_s',TE, 'echo_spacing_s',NaN);
+        'tr_s',TR, 'te_s',TE, 'echo_spacing_s',NaN, ...
+        'matrix',[Nx Ny 1], 'fov_mm',[fov fov thk]*1e3);
 end
