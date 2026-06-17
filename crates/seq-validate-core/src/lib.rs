@@ -17,19 +17,21 @@
 //! use seq_validate_core::{checks, Report, Sequence};
 //!
 //! let seq = Sequence::from_file("scan.seq")?;
-//! let results = checks::run_all(&checks::CheckCtx { seq: &seq });
+//! let results = checks::run_all(&checks::CheckCtx { seq: &seq, profile: None });
 //! let report = Report::for_sequence("scan.seq", &seq, results);
-//! print!("{}", seq_validate_core::render(&report, false));
+//! print!("{}", seq_validate_core::render(&report, false, false));
 //! std::process::exit(report.exit_code());
 //! # Ok::<(), seq_validate_core::Error>(())
 //! ```
 
 pub mod checks;
 pub mod ir;
+pub mod profile;
 pub mod render;
 pub mod report;
 pub mod result;
 
+mod hardware;
 mod integrity;
 mod metrics;
 mod trajectory;
@@ -37,6 +39,7 @@ mod trajectory;
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
 pub use checks::{Check, CheckCtx};
+pub use profile::{Pns, Profile};
 pub use render::render;
 pub use report::{Report, SCHEMA_VERSION, SequenceMeta, Summary};
 pub use result::{Category, CheckResult, Severity, Status};

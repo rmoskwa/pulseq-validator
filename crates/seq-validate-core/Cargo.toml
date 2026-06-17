@@ -17,6 +17,9 @@ md5 = "0.7"
 # default-features off drops the HTTP/file `$ref` resolvers (and their reqwest/tokio
 # stack): our schema is self-contained (local `$defs` only).
 jsonschema = { version = "0.30", default-features = false }
+# Builds synthetic RF events (Shape<Complex64>) for the hardware-check tests;
+# matches the parser's num-complex version.
+num-complex = "0.4"
 
 [lints]
 workspace = true

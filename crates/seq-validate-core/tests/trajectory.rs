@@ -25,7 +25,10 @@ const FIXTURE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures")
 fn results_for(name: &str) -> Vec<CheckResult> {
     let path = Path::new(FIXTURE_DIR).join(name);
     let seq = Sequence::from_file(&path).unwrap_or_else(|e| panic!("{name} must parse: {e}"));
-    run_all(&CheckCtx { seq: &seq })
+    run_all(&CheckCtx {
+        seq: &seq,
+        profile: None,
+    })
 }
 
 fn find<'a>(results: &'a [CheckResult], id: &str) -> &'a CheckResult {

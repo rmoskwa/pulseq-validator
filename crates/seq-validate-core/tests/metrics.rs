@@ -188,12 +188,18 @@ fn fixture(name: &str) -> String {
 
 fn results_for(source: &str) -> Vec<CheckResult> {
     let seq = Sequence::from_source(source, DEFAULT_LARMOR_HZ).expect("source must parse");
-    run_all(&CheckCtx { seq: &seq })
+    run_all(&CheckCtx {
+        seq: &seq,
+        profile: None,
+    })
 }
 
 fn results_for_fixture(name: &str) -> Vec<CheckResult> {
     let seq = Sequence::from_file(fixture(name)).expect("fixture must parse");
-    run_all(&CheckCtx { seq: &seq })
+    run_all(&CheckCtx {
+        seq: &seq,
+        profile: None,
+    })
 }
 
 fn get<'a>(results: &'a [CheckResult], id: &str) -> &'a CheckResult {

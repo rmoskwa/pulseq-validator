@@ -735,6 +735,7 @@ version = "0.1.0"
 dependencies = [
  "jsonschema",
  "md5",
+ "num-complex",
  "pulseq-parse",
  "serde",
  "serde_json",
