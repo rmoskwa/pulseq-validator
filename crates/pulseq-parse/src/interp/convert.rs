@@ -267,7 +267,9 @@ fn convert_rf(
 /// per-sample shape from the raw file.
 fn lookup_grad(g: &model::Gradient, grad_raster: f64, shapes: &mut ShapeLib) -> GradLookup {
     match g {
-        model::Gradient::Free { amp, delay, shape } => (*amp, *delay, shapes.get(shape, grad_raster)),
+        model::Gradient::Free { amp, delay, shape } => {
+            (*amp, *delay, shapes.get(shape, grad_raster))
+        }
         model::Gradient::Trap {
             amp,
             rise,

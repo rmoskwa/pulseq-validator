@@ -5,10 +5,11 @@
 //!   * a snapshot of block count, definitions, and timing holds,
 //!   * the raw layer round-trips (stays addressable),
 //!   * parse is sub-second and empirically O(n) in block count.
+#![allow(clippy::expect_used)] // test helper `load` intentionally panics on failure
 
 use std::time::Instant;
 
-use seq_validate_core::{pulseq_parse, raw_sections, Sequence};
+use seq_validate_core::{Sequence, pulseq_parse, raw_sections};
 
 const FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -39,7 +40,10 @@ fn snapshot_version_and_definitions() {
     let seq = load();
 
     // [VERSION] — confirms the v1.5.1 path is exercised end to end.
-    assert_eq!((seq.version.major, seq.version.minor, seq.version.revision), (1, 5, 1));
+    assert_eq!(
+        (seq.version.major, seq.version.minor, seq.version.revision),
+        (1, 5, 1)
+    );
     assert_eq!(seq.version.suppl, None);
     assert_eq!(seq.version.to_string(), "1.5.1");
 
@@ -78,7 +82,11 @@ fn snapshot_block_count_and_timing() {
     let seq = load();
 
     assert_eq!(seq.blocks.len(), EXPECT_BLOCKS, "block count");
-    assert_eq!(seq.starts.len(), seq.blocks.len(), "starts align with blocks");
+    assert_eq!(
+        seq.starts.len(),
+        seq.blocks.len(),
+        "starts align with blocks"
+    );
 
     // Absolute start times: begin at zero, monotonic non-decreasing, and each
     // equals the previous start plus the previous block's duration.

@@ -122,11 +122,7 @@ impl Report {
     /// instead. Requiring the metadata here makes the
     /// "`sequence` is null iff `error` is set" contract unrepresentable to
     /// violate. Also handy for tests.
-    pub fn new(
-        file: impl Into<String>,
-        sequence: SequenceMeta,
-        results: Vec<CheckResult>,
-    ) -> Self {
+    pub fn new(file: impl Into<String>, sequence: SequenceMeta, results: Vec<CheckResult>) -> Self {
         let summary = Summary::of(&results);
         Report {
             schema_version: SCHEMA_VERSION,
@@ -173,6 +169,7 @@ impl Report {
     /// Panics only if a result carries a non-finite float (`NaN`/`Infinity`),
     /// which `serde_json` cannot represent; the IR never produces such values
     /// for a validly parsed sequence.
+    #[allow(clippy::expect_used)] // invariant documented above; only non-finite floats can fail
     pub fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).expect("Report is always JSON-serializable")
     }

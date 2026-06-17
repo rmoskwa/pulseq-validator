@@ -24,7 +24,9 @@ pub fn from_raw(mut sections: Vec<raw::Section>) -> Result<Sequence, ConversionE
     check_ext_support(&defs.required_exts)?;
 
     let raw_shapes: HashMap<u32, Arc<Vec<f64>>> =
-        map_section_data(&mut sections, |shape: raw::Shape| Ok((shape.id, Arc::new(shape.samples))))?;
+        map_section_data(&mut sections, |shape: raw::Shape| {
+            Ok((shape.id, Arc::new(shape.samples)))
+        })?;
     let mut shapes = ShapeLib::new(raw_shapes)?;
 
     let adcs = map_section_data(&mut sections, |adc: raw::Adc| {
@@ -96,18 +98,19 @@ pub fn from_raw(mut sections: Vec<raw::Section>) -> Result<Sequence, ConversionE
             ))
         })?;
 
-    let traps: HashMap<u32, Arc<model::Gradient>> = map_section_data(&mut sections, |trap: raw::Trap| {
-        Ok((
-            trap.id,
-            Arc::new(model::Gradient::Trap {
-                amp: trap.amp,
-                rise: trap.rise,
-                flat: trap.flat,
-                fall: trap.fall,
-                delay: trap.delay,
-            }),
-        ))
-    })?;
+    let traps: HashMap<u32, Arc<model::Gradient>> =
+        map_section_data(&mut sections, |trap: raw::Trap| {
+            Ok((
+                trap.id,
+                Arc::new(model::Gradient::Trap {
+                    amp: trap.amp,
+                    rise: trap.rise,
+                    flat: trap.flat,
+                    fall: trap.fall,
+                    delay: trap.delay,
+                }),
+            ))
+        })?;
 
     // Gradients and Traps share an id namespace.
     let count = gradients.len() + traps.len();

@@ -2,6 +2,7 @@
 //! completion on the bundled v1.5.1 example, the human and `--json` forms are
 //! well-formed with zero checks, and the exit-code policy holds (0 on success,
 //! 2 on a harness/parse error).
+#![allow(clippy::expect_used)] // test helper `run` intentionally panics on failure
 
 use std::process::Command;
 

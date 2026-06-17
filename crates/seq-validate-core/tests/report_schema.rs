@@ -3,6 +3,7 @@
 //! harness-error — validates against the published JSON Schema
 //! (`schema/report-v1.schema.json`), round-trips through serde unchanged, and
 //! carries the pinned schema version.
+#![allow(clippy::expect_used, clippy::panic)] // test helpers intentionally panic on failure
 
 use seq_validate_core::{CheckResult, Report, SCHEMA_VERSION, SequenceMeta, Severity};
 use serde_json::Value;
