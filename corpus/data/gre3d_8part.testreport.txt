@@ -1,0 +1,35 @@
+Number of blocks: 640
+Number of events:
+   RF:      128
+   Gx:      384
+   Gy:      256
+   Gz:      256
+   ADC:     128
+Event library use:
+   RF:         1
+   Grad:      21
+   Shape:      3
+   ADC:        1
+Sequence duration: 2.560000s
+TE: 0.008000s
+TR: 0.020000s
+Flip angle: 10.00°
+Unique k-space positions (a.k.a. columns, rows, etc): 16
+Unique k-space positions (a.k.a. columns, rows, etc): 16
+Unique k-space positions (a.k.a. columns, rows, etc): 8
+Dimensions: 3
+   Spatial resolution: 12.80 mm
+   Spatial resolution: 12.00 mm
+   Spatial resolution: 12.00 mm
+Repetitions/slices/contrasts: 1  range: [1 1]
+   2048 k-space position(s) repeated 1 times
+Cartesian encoding trajectory detected
+Block timing check passed successfully
+Max. Gradient: 85459 Hz/m == 2.01 mT/m
+Max. Gradient: 42088 Hz/m == 0.99 mT/m
+Max. Gradient: 42088 Hz/m == 0.99 mT/m
+Max. Slew Rate: 4.27296e+09 Hz/m/s == 100.36 T/m/s
+Max. Slew Rate: 4.20875e+09 Hz/m/s == 98.85 T/m/s
+Max. Slew Rate: 4.20875e+09 Hz/m/s == 98.85 T/m/s
+Max. Absolute Gradient: 104144 Hz/m == 2.45 mT/m
+Max. Absolute Slew Rate: 7.32703e+09 Hz/m/s == 172.09 T/m/s

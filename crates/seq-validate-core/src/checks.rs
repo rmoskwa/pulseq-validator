@@ -51,11 +51,14 @@ pub trait Check {
 
 /// The checks the engine runs, in report order.
 ///
-/// Step 3 (`docs/03-integrity-checks.md`) fills it with the sequence-integrity
-/// checks; later steps concatenate their own category modules here. Nothing else
-/// in the engine needs to change when a check is added.
+/// Step 3 (`docs/03-integrity-checks.md`) adds the sequence-integrity checks and
+/// Step 4 (`docs/04-derived-metrics.md`) the derived-metrics check; later steps
+/// concatenate their own category modules here. Nothing else in the engine needs
+/// to change when a check is added.
 pub fn registry() -> Vec<Box<dyn Check>> {
-    crate::integrity::checks()
+    let mut checks = crate::integrity::checks();
+    checks.extend(crate::metrics::checks());
+    checks
 }
 
 /// Run every registered check against `ctx`, concatenating their results in

@@ -11,17 +11,19 @@ deferred v2 goal.
 ## Status
 
 Early. The parser/IR (Step 1), the engine skeleton — result model, stable JSON
-contract, and CLI shell (Step 2) — and the first real checks, sequence integrity
-(Step 3: raster alignment, timing/duration, event legality, version/signature,
-definitions), are in place; the remaining checks land in Steps 4–6.
+contract, and CLI shell (Step 2) — sequence integrity (Step 3: raster alignment,
+timing/duration, event legality, version/signature, definitions), and the derived
+imaging metrics (Step 4: TR, effective TE, flip angle, n_slices, echo spacing,
+scan time, with a MATLAB-generated oracle corpus) are in place; trajectory,
+hardware, and spec-assert checks land in Steps 5–7.
 
 ```console
 $ seq-validate scan.seq            # human report
 $ seq-validate scan.seq --json     # stable JSON (schema/report-v1.schema.json)
 ```
 
-The CLI runs end-to-end today and emits a well-formed (currently check-free)
-report; exit code is `0` on success, `1` on any check failure, `2` on a
+The CLI runs end-to-end today, grouping integrity and derived-metric results by
+category; exit code is `0` on success, `1` on any check failure, `2` on a
 parse/harness error. `--spec` / `--profile` are accepted but inactive until the
 later steps.
 
