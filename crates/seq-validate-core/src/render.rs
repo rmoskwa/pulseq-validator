@@ -14,8 +14,11 @@ use crate::result::{Category, CheckResult, Status};
 
 const RESET: &str = "\x1b[0m";
 
-/// Render `report` to a string, with ANSI color iff `color`.
-pub fn render(report: &Report, color: bool) -> String {
+/// Render `report` to a string, with ANSI color iff `color`. When `verbose`, each
+/// result line also carries its structured `measured`/`expected` data inline;
+/// otherwise the human report shows only the prose message (the full data is
+/// always available via the JSON form — the integration contract).
+pub fn render(report: &Report, color: bool, verbose: bool) -> String {
     let mut out = String::new();
 
     // Header: file, then sequence identity + parse stats (when parsed).
@@ -58,7 +61,7 @@ pub fn render(report: &Report, color: bool) -> String {
             }
             let _ = writeln!(out, "{}", paint(cat.title(), "1", color));
             for r in group {
-                render_result(&mut out, r, id_width, color);
+                render_result(&mut out, r, id_width, color, verbose);
             }
             let _ = writeln!(out);
         }
@@ -76,8 +79,10 @@ pub fn render(report: &Report, color: bool) -> String {
     out
 }
 
-/// Render one result line: `  LABEL  id            message  [measured=… expected=…]`.
-fn render_result(out: &mut String, r: &CheckResult, id_width: usize, color: bool) {
+/// Render one result line: `  LABEL  id            message`, plus a trailing
+/// `[measured=… expected=…]` block only when `verbose` (the data otherwise lives
+/// in the JSON form).
+fn render_result(out: &mut String, r: &CheckResult, id_width: usize, color: bool, verbose: bool) {
     let label = paint(status_label(r.status), status_color(r.status), color);
     let mut line = format!(
         "  {label}  {id:<id_width$}  {msg}",
@@ -85,15 +90,17 @@ fn render_result(out: &mut String, r: &CheckResult, id_width: usize, color: bool
         msg = r.message
     );
 
-    let mut extra = Vec::new();
-    if let Some(m) = &r.measured {
-        extra.push(format!("measured={}", compact(m)));
-    }
-    if let Some(e) = &r.expected {
-        extra.push(format!("expected={}", compact(e)));
-    }
-    if !extra.is_empty() {
-        let _ = write!(line, "  [{}]", extra.join(" "));
+    if verbose {
+        let mut extra = Vec::new();
+        if let Some(m) = &r.measured {
+            extra.push(format!("measured={}", compact(m)));
+        }
+        if let Some(e) = &r.expected {
+            extra.push(format!("expected={}", compact(e)));
+        }
+        if !extra.is_empty() {
+            let _ = write!(line, "  [{}]", extra.join(" "));
+        }
     }
     let _ = writeln!(out, "{line}");
 }

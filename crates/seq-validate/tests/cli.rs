@@ -93,11 +93,113 @@ fn garbage_file_is_parse_error_with_uniform_json() {
 }
 
 #[test]
-fn spec_and_profile_flags_are_accepted_but_noted() {
-    let (code, _, stderr) = run(&[FIXTURE, "--spec", "expected.yaml", "--profile", "ge"]);
-    assert_eq!(code, 0, "accepted flags must not break the run");
+fn spec_flag_is_accepted_but_noted() {
+    let (code, _, stderr) = run(&[FIXTURE, "--spec", "expected.yaml"]);
+    assert_eq!(code, 0, "an accepted-but-inert flag must not break the run");
     assert!(
         stderr.contains("not yet active"),
         "expected an inactivity note on stderr, got: {stderr}"
+    );
+}
+
+#[test]
+fn profile_selects_scanner_and_runs_hardware_checks() {
+    // The example targets GE rasters (grad/block 4 µs, rf/adc 2 µs) and passes the
+    // ge-premier hardware limits → exit 0 with the Hardware section populated.
+    let (code, stdout, _) = run(&[FIXTURE, "--profile", "ge-premier"]);
+    assert_eq!(code, 0, "the example passes ge-premier: {stdout}");
+    assert!(stdout.contains("Hardware & safety"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("hardware.profile") && stdout.contains("ge-premier"),
+        "the resolved profile is named in the report: {stdout}"
+    );
+    assert!(stdout.contains("hardware.slew_rate"), "stdout: {stdout}");
+    // No hardware failures or warnings on the clean, matching example.
+    assert!(stdout.contains("0 failed, 0 warnings"), "stdout: {stdout}");
+}
+
+#[test]
+fn unknown_profile_is_a_clear_error_exit_two() {
+    let (code, _, _) = run(&[FIXTURE, "--profile", "no-such-scanner"]);
+    assert_eq!(
+        code, 2,
+        "an unknown profile is an error, not a silent fallback"
+    );
+    let (_, stdout, _) = run(&[FIXTURE, "--profile", "no-such-scanner", "--json"]);
+    let v: Value = serde_json::from_str(&stdout).expect("error report is still valid JSON");
+    assert!(
+        v["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("unknown scanner profile"),
+        "error names the bad profile: {stdout}"
+    );
+}
+
+#[test]
+fn no_profile_skips_hardware_non_silently() {
+    // File-only mode: hardware checks skip with a clear, non-silent message and
+    // the run still succeeds (exit 0, no fail/warn introduced).
+    let (code, stdout, _) = run(&[FIXTURE]);
+    assert_eq!(code, 0);
+    assert!(
+        stdout.contains("hardware.profile") && stdout.contains("no scanner profile"),
+        "the no-profile outcome is visible, not silent: {stdout}"
+    );
+}
+
+#[test]
+fn set_override_can_drive_a_hardware_fail() {
+    // Tightening maxSlew below the sequence's peak slew turns the slew check red.
+    let (code, stdout, _) = run(&[FIXTURE, "--profile", "ge-premier", "--set", "maxSlew=100"]);
+    assert_eq!(
+        code, 1,
+        "an override-induced limit breach is a fail → exit 1"
+    );
+    assert!(
+        stdout.contains("hardware.slew_rate") && stdout.contains("exceeds maxSlew 100"),
+        "the fail names the offending value and the overridden limit: {stdout}"
+    );
+}
+
+#[test]
+fn set_non_finite_override_is_a_clear_error_not_a_silent_disable() {
+    // `nan` (and overflow → `inf`) parse as f64 but would make the limit vacuously
+    // pass; the override must be rejected as a harness error (exit 2), never used.
+    let (code, _, _) = run(&[FIXTURE, "--profile", "ge-premier", "--set", "maxGrad=nan"]);
+    assert_eq!(
+        code, 2,
+        "a non-finite override is an error, not a silently-disabled check"
+    );
+    let (_, stdout, _) = run(&[
+        FIXTURE,
+        "--profile",
+        "ge-premier",
+        "--set",
+        "maxGrad=nan",
+        "--json",
+    ]);
+    let v: Value = serde_json::from_str(&stdout).expect("error report is still valid JSON");
+    assert!(
+        v["error"].as_str().unwrap_or("").contains("finite"),
+        "the error explains the non-finite override: {stdout}"
+    );
+}
+
+#[test]
+fn verbose_discloses_measured_data_that_the_default_hides() {
+    // Default human report: prose messages only, no structured data blob.
+    let (code, plain, _) = run(&[FIXTURE, "--profile", "ge-premier"]);
+    assert_eq!(code, 0);
+    assert!(
+        !plain.contains("measured="),
+        "the default human report omits the structured data: {plain}"
+    );
+    // --verbose appends each check's measured/expected data inline.
+    let (code, verbose, _) = run(&[FIXTURE, "--profile", "ge-premier", "--verbose"]);
+    assert_eq!(code, 0);
+    assert!(
+        verbose.contains("measured="),
+        "--verbose discloses the structured data inline: {verbose}"
     );
 }

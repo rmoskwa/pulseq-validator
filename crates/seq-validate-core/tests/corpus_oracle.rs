@@ -75,7 +75,10 @@ fn corpus_recovers_inputs_and_matches_self_report() {
             .and_then(|s| s.to_str())
             .expect("utf-8 stem");
         let seq = Sequence::from_file(seqf).unwrap_or_else(|e| panic!("{stem} must parse: {e}"));
-        let results = run_all(&CheckCtx { seq: &seq });
+        let results = run_all(&CheckCtx {
+            seq: &seq,
+            profile: None,
+        });
 
         // Metrics are measurements: none may ever fail.
         for r in results.iter().filter(|r| r.id.starts_with("metrics.")) {
@@ -211,7 +214,10 @@ fn corpus_geometry_dual_witness() {
             .and_then(|s| s.to_str())
             .expect("utf-8 stem");
         let seq = Sequence::from_file(seqf).unwrap_or_else(|e| panic!("{stem} must parse: {e}"));
-        let results = run_all(&CheckCtx { seq: &seq });
+        let results = run_all(&CheckCtx {
+            seq: &seq,
+            profile: None,
+        });
         let params = read_json(&seqf.with_extension("params.json"));
 
         let matrix = i64_array(&params, "matrix"); // [x, y, z]

@@ -58,7 +58,10 @@ const EXAMPLE: &str = concat!(
 
 fn results_for(source: &str) -> Vec<CheckResult> {
     let seq = Sequence::from_source(source, DEFAULT_LARMOR_HZ).expect("source must parse");
-    run_all(&CheckCtx { seq: &seq })
+    run_all(&CheckCtx {
+        seq: &seq,
+        profile: None,
+    })
 }
 
 fn get<'a>(results: &'a [CheckResult], id: &str) -> &'a CheckResult {
@@ -175,7 +178,10 @@ fn nonpositive_raster_fails() {
 #[test]
 fn example_passes_all_and_signature_verifies() {
     let seq = Sequence::from_file(EXAMPLE).expect("bundled example must parse");
-    let r = run_all(&CheckCtx { seq: &seq });
+    let r = run_all(&CheckCtx {
+        seq: &seq,
+        profile: None,
+    });
 
     // Acceptance: all integrity checks pass on the example file (none fail/warn).
     assert_eq!(
@@ -196,13 +202,27 @@ fn example_passes_all_and_signature_verifies() {
 fn exit_codes_follow_policy() {
     // Clean sequence → exit 0.
     let seq = Sequence::from_source(BASE, DEFAULT_LARMOR_HZ).unwrap();
-    let clean = Report::for_sequence("base", &seq, run_all(&CheckCtx { seq: &seq }));
+    let clean = Report::for_sequence(
+        "base",
+        &seq,
+        run_all(&CheckCtx {
+            seq: &seq,
+            profile: None,
+        }),
+    );
     assert_eq!(clean.exit_code(), 0);
 
     // A check failure → exit 1.
     let bad = BASE.replace("50 100 50 0", "50 100 50 5");
     let seq = Sequence::from_source(&bad, DEFAULT_LARMOR_HZ).unwrap();
-    let failing = Report::for_sequence("bad", &seq, run_all(&CheckCtx { seq: &seq }));
+    let failing = Report::for_sequence(
+        "bad",
+        &seq,
+        run_all(&CheckCtx {
+            seq: &seq,
+            profile: None,
+        }),
+    );
     assert_eq!(failing.exit_code(), 1);
 
     // Parse-blocking corruption → harness error → exit 2.

@@ -14,16 +14,20 @@
 //! later is a cheap refactor.
 
 use crate::ir::Sequence;
+use crate::profile::Profile;
 use crate::result::{Category, CheckResult};
 
 /// Everything a check may inspect.
 ///
-/// Currently just the interpreted [`Sequence`]. Later steps add the optional
-/// expected-spec (Step 7) and scanner profile (Step 6) as fields here, so the
-/// [`Check::run`] signature never changes as inputs accrue.
+/// The interpreted [`Sequence`] plus the resolved scanner [`Profile`] (Step 6;
+/// `None` in file-only mode, when the hardware checks `skip`). Step 7 adds the
+/// optional expected-spec as a further field here, so the [`Check::run`] signature
+/// never changes as inputs accrue.
 pub struct CheckCtx<'a> {
     /// The interpreted sequence under validation.
     pub seq: &'a Sequence,
+    /// The resolved scanner profile for hardware/safety checks, if any.
+    pub profile: Option<&'a Profile>,
 }
 
 /// A discrete, registrable validation unit.
@@ -52,14 +56,16 @@ pub trait Check {
 /// The checks the engine runs, in report order.
 ///
 /// Step 3 (`docs/03-integrity-checks.md`) adds the sequence-integrity checks,
-/// Step 4 (`docs/04-derived-metrics.md`) the derived-metrics check, and Step 5
-/// (`docs/05-trajectory-geometry.md`) the trajectory gate + dual-witness geometry;
-/// later steps concatenate their own category modules here. Nothing else in the
-/// engine needs to change when a check is added.
+/// Step 4 (`docs/04-derived-metrics.md`) the derived-metrics check, Step 5
+/// (`docs/05-trajectory-geometry.md`) the trajectory gate + dual-witness geometry,
+/// and Step 6 (`docs/06-scanner-hardware.md`) the hardware/safety checks; later
+/// steps concatenate their own category modules here. Nothing else in the engine
+/// needs to change when a check is added.
 pub fn registry() -> Vec<Box<dyn Check>> {
     let mut checks = crate::integrity::checks();
     checks.extend(crate::metrics::checks());
     checks.extend(crate::trajectory::checks());
+    checks.extend(crate::hardware::checks());
     checks
 }
 
