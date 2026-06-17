@@ -15,7 +15,9 @@
 
 use std::path::{Path, PathBuf};
 
-use seq_validate_core::{CheckCtx, CheckResult, Measurements, Sequence, Spec, Status, checks::run_all};
+use seq_validate_core::{
+    CheckCtx, CheckResult, Measurements, Sequence, Spec, Status, checks::run_all,
+};
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -181,7 +181,13 @@ impl Spec {
             out.push(self.scalar_result("tr_ms", "metrics.tr", m.tr_s, 1e3, e));
         }
         if let Some(e) = self.flip_angle_deg {
-            out.push(self.scalar_result("flip_angle_deg", "metrics.flip_angle", m.flip_deg, 1.0, e));
+            out.push(self.scalar_result(
+                "flip_angle_deg",
+                "metrics.flip_angle",
+                m.flip_deg,
+                1.0,
+                e,
+            ));
         }
         if let Some(e) = self.echo_spacing_ms {
             out.push(self.scalar_result(

@@ -40,9 +40,8 @@ fn a_skipped_metric_is_none_not_a_guessed_zero() {
 
 #[test]
 fn array_axes_parse_with_null_meaning_unpinned() {
-    let results = vec![
-        CheckResult::pass("trajectory.extent", "").with_measured(json!([320.0, 320.0, null])),
-    ];
+    let results =
+        vec![CheckResult::pass("trajectory.extent", "").with_measured(json!([320.0, 320.0, null]))];
     let m = Measurements::from_results(&results);
     assert_eq!(m.extent, Some(vec![Some(320.0), Some(320.0), None]));
 }
@@ -57,7 +56,10 @@ fn geometry_authoritative_is_param_algebra_when_it_passed() {
     let m = Measurements::from_results(&results);
     let (values, label) = m.matrix.authoritative();
     assert_eq!(label, "param-algebra");
-    assert_eq!(values, Some([Some(192.0), Some(192.0), Some(1.0)].as_slice()));
+    assert_eq!(
+        values,
+        Some([Some(192.0), Some(192.0), Some(1.0)].as_slice())
+    );
     // Both raw witnesses remain readable.
     assert_eq!(m.matrix.param_status, Some(Status::Pass));
     assert!(m.matrix.trajectory.is_some());
