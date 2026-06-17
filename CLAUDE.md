@@ -55,3 +55,14 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## Repository layout
+
+```
+crates/pulseq-parse        .seq parser + interpreted IR (fork of pulseq-rs)
+crates/seq-validate-core   engine library: IR wrapper, checks, result model, JSON
+crates/seq-validate        the seq-validate CLI
+corpus/                    oracle corpus + MATLAB generator (provenance)
+fixtures/                  example .seq files and an example spec
+references/                the Pulseq v1.5.1 specification (PDF)
+```
