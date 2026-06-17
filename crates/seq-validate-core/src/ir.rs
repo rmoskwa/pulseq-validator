@@ -26,6 +26,9 @@ use pulseq_parse::{interp, model, raw};
 pub use pulseq_parse::interp::{
     Adc, Block, BlockLabels, Gradient, Labels, Once, Rf, Shape, Transform, Trigger,
 };
+// `RfUse` lives on the raw layer but rides through to `interp::Rf::rf_use`; the
+// derived-metrics check needs it to tell an excitation from a refocusing pulse.
+pub use pulseq_parse::raw::RfUse;
 
 /// 1H Larmor frequency at 1 T, in Hz — the default used to fold relative and
 /// offset RF/ADC freq+phase during interpretation. Only affects freq/phase
@@ -115,6 +118,15 @@ pub struct Sequence {
     /// Absolute start time (seconds) of each block; `starts[i]` aligns with
     /// `blocks[i]`. `starts[0]` is `0.0`.
     pub starts: Vec<f64>,
+    /// Logical-frame gradient zeroth moments (`∫G·dt`, `[Hz/m·s]`), one
+    /// `[gx, gy, gz]` triple per block in execution order (parallel to
+    /// [`blocks`](Self::blocks)). These are read off the `model` (**canonical,
+    /// pre-rotation**) layer, *not* the interpreted [`blocks`](Self::blocks): a
+    /// block-rotation extension (PROPELLER blades, rotated radial spokes) mixes
+    /// the physical axes, but the imaging metrics reason in the logical frame —
+    /// the central-ky echo is the one whose logical gy area is ≈ 0. For an
+    /// unrotated block these equal the interpreted gradients' areas.
+    pub logical_grad_areas: Vec<[f64; 3]>,
     /// Total sequence duration (seconds): the sum of all block durations.
     pub total_duration: f64,
     /// Non-fatal interpreter warnings raised during model→interp lowering.
@@ -199,6 +211,26 @@ impl Sequence {
         let starts = int_seq.block_starts();
         let total_duration = int_seq.duration();
 
+        // Logical-frame gradient areas come from the *model* layer, which is
+        // canonical (block-rotation extensions live in `ext`, unapplied), so the
+        // metrics can reason about phase-encode / readout / partition areas in
+        // the logical frame even for rotated sequences. `seq` outlives the
+        // `from_seq` borrow above, so it is still available here.
+        let logical_grad_areas = seq
+            .blocks
+            .iter()
+            .map(|b| {
+                let area = |g: Option<&model::Gradient>| {
+                    g.map_or(0.0, |g| model_grad_area(g, seq.time_raster.grad))
+                };
+                [
+                    area(b.gx.as_deref()),
+                    area(b.gy.as_deref()),
+                    area(b.gz.as_deref()),
+                ]
+            })
+            .collect();
+
         let interp::Sequence { name, fov, blocks } = int_seq;
 
         Ok(Sequence {
@@ -210,6 +242,7 @@ impl Sequence {
             signature,
             blocks,
             starts,
+            logical_grad_areas,
             total_duration,
             warnings,
         })
@@ -243,6 +276,42 @@ fn recompute_signature(source: &str, algo: &str) -> Option<String> {
     let newline = source.find("\n[SIGNATURE]")?;
     let signed = source.get(..newline)?;
     Some(format!("{:x}", md5::compute(signed.as_bytes())))
+}
+
+/// Zeroth moment (`∫G·dt`, `[Hz/m·s]`) of one canonical `model` gradient. A
+/// trapezoid integrates in closed form; a free gradient integrates its sampled
+/// shape (in raster ticks, scaled to seconds). This is the logical-frame area —
+/// the gradient's own per-axis amplitude, before any block rotation.
+fn model_grad_area(g: &model::Gradient, grad_raster: f64) -> f64 {
+    match g {
+        model::Gradient::Trap {
+            amp,
+            rise,
+            flat,
+            fall,
+            ..
+        } => amp * (flat + 0.5 * (rise + fall)),
+        model::Gradient::Free { amp, shape, .. } => {
+            amp * integrate_shape_ticks(shape) * grad_raster
+        }
+    }
+}
+
+/// Trapezoidal integral of a `model` shape over its active extent `[0, duration]`
+/// in raster *ticks* (multiply by the raster to get seconds). The waveform is
+/// held constant from `0` to the first sample and from the last to `duration`,
+/// matching the shape's interpolation convention — so a uniform centred shape
+/// integrates as the midpoint rule and an explicit boundary grid as the plain
+/// trapezoid.
+#[allow(clippy::indexing_slicing)] // Shape invariants: `time`/`amp` non-empty, equal length
+fn integrate_shape_ticks(shape: &model::Shape<f64>) -> f64 {
+    let (t, a) = (&shape.time, &shape.amp);
+    let n = t.len();
+    let mut acc = a[0] * t[0];
+    for i in 1..n {
+        acc += (a[i - 1] + a[i]) * 0.5 * (t[i] - t[i - 1]);
+    }
+    acc + a[n - 1] * (f64::from(shape.duration) - t[n - 1])
 }
 
 /// Re-parse the **raw** layer (faithful, ID-indexed section tables) for
