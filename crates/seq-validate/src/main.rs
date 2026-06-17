@@ -16,15 +16,16 @@
 //! `--profile` and no limits embedded in the file's `[DEFINITIONS]`, the hardware
 //! checks `skip`. The human report shows the prose message per check; `--verbose`
 //! also appends each check's structured `measured`/`expected` data inline (always
-//! present in `--json`). `--spec` is accepted but inert until the spec-assert
-//! subsystem (Step 7) lands.
+//! present in `--json`). `--spec <spec.yaml>` (Step 7) asserts the measured metrics
+//! against an expected-value spec: each provided field becomes a `spec.*` check and
+//! the run exits nonzero if any asserted field is out of tolerance.
 
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use seq_validate_core::{Profile, Report, Sequence, checks, profile, render};
+use seq_validate_core::{Profile, Report, Sequence, Spec, checks, profile, render};
 
 /// Validate a Pulseq `.seq` file: report its metrics, integrity, and safety, and
 /// optionally assert them against an expected-value spec.
@@ -51,7 +52,7 @@ struct Cli {
     #[arg(long = "set", value_name = "FIELD=VALUE")]
     set: Vec<String>,
 
-    /// Expected-value spec for hard pass/fail (accepted; active from Step 7).
+    /// Expected-value spec for hard pass/fail: assert measured metrics against it.
     #[arg(long, value_name = "SPEC.yaml")]
     spec: Option<PathBuf>,
 }
@@ -60,27 +61,9 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let file_label = cli.file.display().to_string();
 
-    if cli.spec.is_some() {
-        eprintln!(
-            "note: --spec is accepted but not yet active (added in Step 7); it is ignored for now."
-        );
-    }
-
-    // Parse + run checks, or capture a harness/parse error. Either way we end up
-    // with one Report so `--json` always emits the same schema.
-    let report = match Sequence::from_file(&cli.file) {
-        Ok(seq) => match resolve_profile(&cli, &seq) {
-            Ok(profile) => {
-                let results = checks::run_all(&checks::CheckCtx {
-                    seq: &seq,
-                    profile: profile.as_ref(),
-                });
-                Report::for_sequence(file_label, &seq, results)
-            }
-            Err(err) => Report::harness_error(file_label, err),
-        },
-        Err(err) => Report::harness_error(file_label, err.to_string()),
-    };
+    // Build one Report whatever happens (parse error, profile/spec error, or a
+    // full run) so `--json` always emits the same schema.
+    let report = build_report(&cli, file_label);
 
     if cli.json {
         println!("{}", report.to_json());
@@ -93,12 +76,56 @@ fn main() -> ExitCode {
     ExitCode::from(report.exit_code() as u8)
 }
 
-/// Resolve the scanner profile per `docs/06`: the `--profile` name (or embedded
-/// `[DEFINITIONS]` limits) then any `--set field=value` overrides. An unknown
-/// profile name, a malformed `--set`, or an override with no base profile is an
-/// error (surfaced as a harness error → exit 2), never a silent wrong scanner.
-fn resolve_profile(cli: &Cli, seq: &Sequence) -> Result<Option<Profile>, String> {
-    let mut resolved = profile::resolve(cli.profile.as_deref(), seq)?;
+/// Parse the sequence, the optional spec, resolve the profile, run the checks, and
+/// (when a spec is given) append the `spec.*` assertions. Any step that fails
+/// becomes a harness-error [`Report`] (exit 2) so the JSON schema is uniform.
+fn build_report(cli: &Cli, file_label: String) -> Report {
+    let seq = match Sequence::from_file(&cli.file) {
+        Ok(seq) => seq,
+        Err(err) => return Report::harness_error(file_label, err.to_string()),
+    };
+
+    // Load the spec first: its `scanner` field can select the profile.
+    let spec = match cli.spec.as_deref() {
+        Some(path) => match Spec::from_yaml_file(path) {
+            Ok(spec) => Some(spec),
+            Err(err) => return Report::harness_error(file_label, format!("spec: {err}")),
+        },
+        None => None,
+    };
+
+    let profile = match resolve_profile(cli, &seq, spec.as_ref().and_then(|s| s.scanner.as_deref()))
+    {
+        Ok(profile) => profile,
+        Err(err) => return Report::harness_error(file_label, err),
+    };
+
+    let mut results = checks::run_all(&checks::CheckCtx {
+        seq: &seq,
+        profile: profile.as_ref(),
+    });
+    if let Some(spec) = &spec {
+        // Spec assertions reuse the measured values from the file-only checks.
+        let assertions = spec.assert(&results);
+        results.extend(assertions);
+    }
+    Report::for_sequence(file_label, &seq, results)
+}
+
+/// Resolve the scanner profile per `docs/06`: the `--profile` name, else the
+/// spec's `scanner` field, else embedded `[DEFINITIONS]` limits — then any `--set
+/// field=value` overrides. An unknown profile name, a malformed `--set`, or an
+/// override with no base profile is an error (surfaced as a harness error → exit
+/// 2), never a silent wrong scanner.
+fn resolve_profile(
+    cli: &Cli,
+    seq: &Sequence,
+    spec_scanner: Option<&str>,
+) -> Result<Option<Profile>, String> {
+    // An explicit `--profile` wins over the spec's `scanner`; either is an explicit
+    // selection, so an unknown name is an error rather than a silent fallback.
+    let name = cli.profile.as_deref().or(spec_scanner);
+    let mut resolved = profile::resolve(name, seq)?;
     for entry in &cli.set {
         let (field, value) = entry
             .split_once('=')

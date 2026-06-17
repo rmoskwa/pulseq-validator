@@ -30,6 +30,7 @@ pub mod profile;
 pub mod render;
 pub mod report;
 pub mod result;
+pub mod spec;
 
 mod hardware;
 mod integrity;
@@ -43,6 +44,7 @@ pub use profile::{Pns, Profile};
 pub use render::render;
 pub use report::{Report, SCHEMA_VERSION, SequenceMeta, Summary};
 pub use result::{Category, CheckResult, Severity, Status};
+pub use spec::{Spec, Tolerance};
 
 /// The parser crate, re-exported so consumers can reach the `raw` / `model` /
 /// `interp` layers directly when the IR isn't enough (debugging, round-trip).
