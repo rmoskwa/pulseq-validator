@@ -2,14 +2,15 @@
 #
 #   crates/pulseq-parse       — our .seq parser, forked from pulseq-rs (MIT; see
 #                               crates/pulseq-parse/NOTICE), now owned & developed here
-#   crates/seq-validate-core  — engine library; Step 1 exposes the IR over pulseq-parse
-#
-# The `seq-validate` binary crate is added in Step 2 (docs/02-crate-skeleton.md).
+#   crates/seq-validate-core  — engine library: the interpreted IR (Step 1) plus the
+#                               result model, JSON report contract, and check abstraction (Step 2)
+#   crates/seq-validate       — the `seq-validate` CLI, a thin shell over the engine (Step 2)
 [workspace]
 resolver = "3"
 members = [
     "crates/pulseq-parse",
     "crates/seq-validate-core",
+    "crates/seq-validate",
 ]
 
 [workspace.package]

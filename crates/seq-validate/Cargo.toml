@@ -1,0 +1,14 @@
+[package]
+name = "seq-validate"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "CLI for the Pulseq .seq validator: parse a sequence and emit a human or JSON validation report."
+
+[[bin]]
+name = "seq-validate"
+path = "src/main.rs"
+
+[dependencies]
+seq-validate-core = { path = "../seq-validate-core" }
+clap = { version = "4", features = ["derive"] }
