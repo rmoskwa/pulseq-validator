@@ -31,6 +31,7 @@ pub mod report;
 pub mod result;
 
 mod integrity;
+mod metrics;
 
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
