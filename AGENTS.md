@@ -52,6 +52,8 @@ Top-level keys: `schema_version`, `file`, `error`, `sequence`, `results`,
 { "id": "...", "status": "pass|fail|warn|skip", "measured": {}, "expected": {}, "severity": "...", "message": "..." }
 ```
 
+`message` is the human-readable explanation and is where the fix guidance lives. Read `message` for *how* to fix; route on `id` + `status` (above) for *what*.
+
 The full contract is the JSON Schema at
 [`crates/seq-validate-core/schema/report-v1.schema.json`](crates/seq-validate-core/schema/report-v1.schema.json),
 also embedded in the binary (`seq-validate --emit-report-schema`).

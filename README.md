@@ -171,7 +171,8 @@ pulseq-parse ──► interpreted IR ──► seq-validate-core ──► Repo
 
 The result model is uniform: each check yields
 `{ id, status, measured, expected?, severity, message }`, and only a `fail` drives
-a nonzero exit code.
+a nonzero exit code. Fix guidance, when a check has any, lives in `message` — there
+is no separate hint/remediation field.
 
 ## Correctness
 
