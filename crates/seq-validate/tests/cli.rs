@@ -367,6 +367,49 @@ fn list_profiles_enumerates_the_bundled_catalog() {
 }
 
 #[test]
+fn list_checks_enumerates_the_catalog() {
+    // Human form: needs no .seq file, grouped by category, names result ids.
+    let (code, stdout, _) = run(&["--list-checks"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("Sequence integrity"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("integrity.raster_alignment"),
+        "stdout: {stdout}"
+    );
+    // An aggregate check's sub-ids are enumerated, not the trait object's name
+    // (`metrics.derived` / `trajectory.geometry` / `hardware.hardware`).
+    assert!(
+        stdout.contains("trajectory.geometry_agreement"),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("metrics.te"), "stdout: {stdout}");
+    assert!(stdout.contains("hardware.pns"), "stdout: {stdout}");
+    assert!(!stdout.contains("metrics.derived"), "stdout: {stdout}");
+
+    // --json form: a machine-readable array of {id, category, summary}.
+    let (code, stdout, _) = run(&["--list-checks", "--json"]);
+    assert_eq!(code, 0);
+    let v: Value = serde_json::from_str(&stdout).expect("--list-checks --json is valid JSON");
+    let arr = v.as_array().expect("a JSON array");
+    let ids: Vec<&str> = arr.iter().filter_map(|d| d["id"].as_str()).collect();
+    assert!(
+        ids.contains(&"trajectory.geometry_agreement"),
+        "ids: {ids:?}"
+    );
+    assert!(ids.contains(&"metrics.fov"), "ids: {ids:?}");
+    // Each entry carries its category and a non-empty summary.
+    let agreement = arr
+        .iter()
+        .find(|d| d["id"] == "trajectory.geometry_agreement")
+        .expect("the agreement check is catalogued");
+    assert_eq!(agreement["category"], "trajectory");
+    assert!(
+        !agreement["summary"].as_str().unwrap_or("").is_empty(),
+        "every entry has a summary: {agreement}"
+    );
+}
+
+#[test]
 fn verbose_discloses_measured_data_that_the_default_hides() {
     // Default human report: prose messages only, no structured data blob.
     let (code, plain, _) = run(&[FIXTURE, "--profile", "ge-premier"]);

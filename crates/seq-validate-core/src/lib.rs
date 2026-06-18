@@ -41,7 +41,7 @@ mod waveform;
 
 pub use ir::{DEFAULT_LARMOR_HZ, Error, Sequence, Signature, TimeRaster, Version, raw_sections};
 
-pub use checks::{Check, CheckCtx};
+pub use checks::{Check, CheckCtx, CheckDoc};
 pub use measurements::{Geometry, Measurements};
 pub use profile::{Pns, Profile};
 pub use render::render;

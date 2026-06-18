@@ -35,7 +35,7 @@
 
 use serde_json::Value;
 
-use crate::checks::{Check, CheckCtx};
+use crate::checks::{Check, CheckCtx, CheckDoc};
 use crate::ir::{Adc, Gradient, Rf, RfUse, Sequence};
 use crate::metrics::{MIN_EXCITATION_FLIP_DEG, flip_deg, is_non_excitation_use, rf_center_s};
 use crate::result::{Category, CheckResult};
@@ -530,6 +530,41 @@ impl Check for TrajectoryGeometry {
         // Unused: this check emits explicit per-result ids (some under `metrics.`,
         // the param-algebra sibling) rather than the default `<category>.<name>`.
         "geometry"
+    }
+
+    fn docs(&self) -> Vec<CheckDoc> {
+        // Both witnesses live in this check: the param-algebra sibling under
+        // `metrics.*`, the trajectory gate under `trajectory.*` (in run() order).
+        vec![
+            CheckDoc::new(
+                "metrics.matrix",
+                "Acquisition matrix [readout × phase × partition] by Cartesian area-algebra; skips (deferring to the trajectory gate) when the single-readout Cartesian model does not hold.",
+            ),
+            CheckDoc::new(
+                "metrics.fov",
+                "Field of view [mm] by Cartesian area-algebra; skips to the trajectory gate when that model does not hold.",
+            ),
+            CheckDoc::new(
+                "trajectory.dimensionality",
+                "2D vs 3D from the kz-presence test of the integrated trajectory; skips on a non-imaging sequence.",
+            ),
+            CheckDoc::new(
+                "trajectory.extent",
+                "Per-axis k-space coverage [1/m] from the integrated gradients (the dimension-general witness).",
+            ),
+            CheckDoc::new(
+                "trajectory.matrix",
+                "Matrix on each uniformly, fully-sampled axis; skips when no axis is a clean grid (non-Cartesian / accelerated).",
+            ),
+            CheckDoc::new(
+                "trajectory.fov",
+                "Field of view [mm] on each clean-grid axis; skips when no axis is a uniformly, fully-sampled grid.",
+            ),
+            CheckDoc::new(
+                "trajectory.geometry_agreement",
+                "Reconciles the area-algebra and trajectory geometry witnesses; warns on a disagreement, skips when no axis is measured by both.",
+            ),
+        ]
     }
 
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {

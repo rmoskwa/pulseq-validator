@@ -5,7 +5,7 @@
 | **ID** | AF-6 |
 | **Priority** | P3 |
 | **Effort** | M |
-| **Status** | ☐ Not started |
+| **Status** | ☑ Done |
 | **Area** | CLI · discoverability |
 
 > Part of the [agent-facing backlog](README.md). See the index for shared context.
