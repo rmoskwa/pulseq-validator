@@ -36,9 +36,10 @@
 use serde_json::Value;
 
 use crate::checks::{Check, CheckCtx};
-use crate::ir::{Adc, Gradient, Rf, RfUse, Sequence, Shape};
+use crate::ir::{Adc, Gradient, Rf, RfUse, Sequence};
 use crate::metrics::{MIN_EXCITATION_FLIP_DEG, flip_deg, is_non_excitation_use, rf_center_s};
 use crate::result::{Category, CheckResult};
+use crate::waveform;
 
 /// The trajectory + dual-witness geometry check, wired into [`crate::checks::registry`].
 pub(crate) fn checks() -> Vec<Box<dyn Check>> {
@@ -61,70 +62,6 @@ const CART_PRODUCT_LO: f64 = 0.5;
 const CART_PRODUCT_HI: f64 = 1.7;
 /// Relative tolerance when reconciling the two witnesses' FOV (matrix is exact).
 const FOV_REL_TOL: f64 = 0.05;
-
-// --- gradient integration ----------------------------------------------------
-
-/// Trapezoidal integral of a sparse gradient [`Shape`] from `0` to `upto` (s,
-/// clamped to the shape's active extent). Mirrors `ir::integrate_shape_ticks` but
-/// *partial* (up to an arbitrary time) and already in seconds, so it yields the
-/// running k-space moment at any point inside a readout. The waveform is held
-/// constant before the first sample and after the last (the IR's interpolation
-/// convention) and is piecewise-linear between, so the result is exact at every
-/// breakpoint — trapezoids and resampled rotated waveforms alike.
-#[allow(clippy::indexing_slicing)] // Shape invariants: time/amp non-empty and equal length
-fn shape_partial_integral(shape: &Shape<f64>, upto: f64) -> f64 {
-    let upto = upto.clamp(0.0, shape.duration);
-    let (t, a) = (&shape.time, &shape.amp);
-    let n = t.len();
-    // Leading flat segment [0, t[0]] held at a[0].
-    let mut acc = a[0] * t[0].min(upto);
-    if upto <= t[0] {
-        return acc;
-    }
-    // Piecewise-linear segments.
-    for i in 1..n {
-        let (t0, t1) = (t[i - 1], t[i]);
-        let seg = t1 - t0;
-        if seg <= 0.0 {
-            continue;
-        }
-        let end = t1.min(upto);
-        let frac = (end - t0) / seg;
-        let a_end = a[i - 1] + (a[i] - a[i - 1]) * frac;
-        acc += (a[i - 1] + a_end) * 0.5 * (end - t0);
-        if upto <= t1 {
-            return acc;
-        }
-    }
-    // Trailing flat segment [t[last], duration] held at a[last].
-    acc + a[n - 1] * (upto - t[n - 1])
-}
-
-/// Running gradient moment `∫₀^t G·dt` [1/m] up to block-relative time `t` [s].
-fn grad_partial_area(g: &Gradient, t: f64) -> f64 {
-    let local = t - g.delay;
-    if local <= 0.0 {
-        0.0
-    } else {
-        g.amp * shape_partial_integral(&g.shape, local)
-    }
-}
-
-/// Full gradient moment `∫ G·dt` [1/m] over the gradient's active extent.
-fn grad_area(g: &Gradient) -> f64 {
-    g.amp * shape_partial_integral(&g.shape, g.shape.duration)
-}
-
-/// Instantaneous gradient amplitude [Hz/m] at block-relative time `t` [s]; `0`
-/// outside the gradient's active window.
-fn grad_value(g: &Gradient, t: f64) -> f64 {
-    let local = t - g.delay;
-    if local < 0.0 || local > g.shape.duration {
-        0.0
-    } else {
-        g.amp * g.shape.interpolate(local)
-    }
-}
 
 fn add3(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
@@ -155,15 +92,15 @@ fn analytic_kspace(seq: &Sequence) -> Vec<[f64; 3]> {
 
     for b in &seq.blocks {
         let area = [
-            b.gx.as_ref().map_or(0.0, grad_area),
-            b.gy.as_ref().map_or(0.0, grad_area),
-            b.gz.as_ref().map_or(0.0, grad_area),
+            b.gx.as_ref().map_or(0.0, waveform::area),
+            b.gy.as_ref().map_or(0.0, waveform::area),
+            b.gz.as_ref().map_or(0.0, waveform::area),
         ];
         let partial = |t: f64| -> [f64; 3] {
             [
-                b.gx.as_ref().map_or(0.0, |g| grad_partial_area(g, t)),
-                b.gy.as_ref().map_or(0.0, |g| grad_partial_area(g, t)),
-                b.gz.as_ref().map_or(0.0, |g| grad_partial_area(g, t)),
+                b.gx.as_ref().map_or(0.0, |g| waveform::partial_area(g, t)),
+                b.gy.as_ref().map_or(0.0, |g| waveform::partial_area(g, t)),
+                b.gz.as_ref().map_or(0.0, |g| waveform::partial_area(g, t)),
             ]
         };
 
@@ -480,7 +417,7 @@ fn readout_covers_adc(gx: &Gradient, adc: &Adc) -> bool {
     if adc.num == 0 {
         return false;
     }
-    let center = |i: u32| grad_value(gx, adc.delay + (f64::from(i) + 0.5) * adc.dwell);
+    let center = |i: u32| waveform::value_at(gx, adc.delay + (f64::from(i) + 0.5) * adc.dwell);
     let mid = center(adc.num / 2);
     let amp = mid.abs();
     if amp == 0.0 {
@@ -545,7 +482,8 @@ fn param_geometry(seq: &Sequence) -> Result<ParamGeom, String> {
 
     // matrix_x / fov_x from the readout gradient amplitude (read on its flat top)
     // and the ADC dwell.
-    let g_ro = grad_value(gx, adc.delay + (f64::from(adc.num) * 0.5 + 0.5) * adc.dwell).abs();
+    let g_ro =
+        waveform::value_at(gx, adc.delay + (f64::from(adc.num) * 0.5 + 0.5) * adc.dwell).abs();
     let matrix_x = i64::from(adc.num);
     let fov_x = (g_ro > 0.0).then(|| 1.0 / (g_ro * adc.dwell) * 1e3);
 
@@ -946,21 +884,6 @@ mod tests {
         let m = measure(&[[0.0, 0.0, 0.0], [0.3, 0.1, 0.0], [0.2, 0.4, 0.0]]);
         assert!(!m.imaging);
         assert!(m.axes.iter().all(|a| !a.present));
-    }
-
-    #[test]
-    fn partial_integral_of_trapezoid() {
-        // Unit trapezoid: rise 1, flat 2, fall 1 (area = 3).
-        let s = Shape {
-            time: vec![0.0, 1.0, 3.0, 4.0],
-            amp: vec![0.0, 1.0, 1.0, 0.0],
-            duration: 4.0,
-        };
-        assert!((shape_partial_integral(&s, 0.0)).abs() < 1e-12);
-        assert!((shape_partial_integral(&s, 1.0) - 0.5).abs() < 1e-12); // rise only
-        assert!((shape_partial_integral(&s, 2.0) - 1.5).abs() < 1e-12); // rise + 1 flat
-        assert!((shape_partial_integral(&s, 4.0) - 3.0).abs() < 1e-12); // full
-        assert!((shape_partial_integral(&s, 9.9) - 3.0).abs() < 1e-12); // clamps past end
     }
 
     #[test]
