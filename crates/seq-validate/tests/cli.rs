@@ -125,6 +125,27 @@ fn garbage_file_is_parse_error_with_uniform_json() {
     assert_eq!(v["sequence"], Value::Null);
 }
 
+#[test]
+fn malformed_version_yields_a_friendly_one_line_error() {
+    // AF-4: a malformed/missing [VERSION] must surface a human-readable summary,
+    // not the raw winnow debug blob (`ContextError { context: [...], ... }`).
+    let path = format!("{}/bad-version.seq", env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(&path, "[VERSION]\nmajor abc\nminor 5\nrevision 1\n").unwrap();
+
+    let (code, stdout, _) = run(&[&path, "--json"]);
+    assert_eq!(code, 2, "a parse error is exit 2");
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON on error too");
+    let err = v["error"].as_str().expect("error is a string");
+    // The friendlier message names the section it failed in,
+    assert!(err.contains("[VERSION]"), "error names the section: {err}");
+    // drops the Rust-debug framing entirely,
+    assert!(!err.contains("ContextError"), "no parser debug blob: {err}");
+    // and stays a single line.
+    assert!(!err.contains('\n'), "the summary is one line: {err}");
+    // Uniform shape is preserved: no sequence on a parse error.
+    assert_eq!(v["sequence"], Value::Null);
+}
+
 const SPEC: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../fixtures/t1_spgr_axial_brain.spec.yaml"

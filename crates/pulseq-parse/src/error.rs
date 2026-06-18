@@ -152,7 +152,16 @@ impl<'s> From<winnow::error::ParseError<&'s str, winnow::error::ContextError>> f
 
 impl From<winnow::error::ErrMode<winnow::error::ContextError>> for ParseError {
     fn from(e: winnow::error::ErrMode<winnow::error::ContextError>) -> Self {
-        ParseError::SyntaxError(e.to_string())
+        // `ErrMode`'s own Display debug-formats the inner error, yielding e.g.
+        // `Parsing Error: ContextError { context: [Label("[VERSION] section")],
+        // cause: None }`. The inner `ContextError` has a clean Display that names
+        // the section it was in ("invalid [VERSION] section"), so unwrap to it.
+        // `Incomplete` cannot occur for the complete `&str` parser; keep
+        // `ErrMode`'s text if it ever does.
+        match e.into_inner() {
+            Ok(ctx) => ParseError::SyntaxError(ctx.to_string()),
+            Err(incomplete) => ParseError::SyntaxError(incomplete.to_string()),
+        }
     }
 }
 

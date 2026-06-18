@@ -5,7 +5,7 @@
 | **ID** | AF-4 |
 | **Priority** | P2 |
 | **Effort** | M |
-| **Status** | ☐ Not started |
+| **Status** | ☑ Done |
 | **Area** | Output contract · error reporting |
 
 > Part of the [agent-facing backlog](README.md). See the index for shared context.
