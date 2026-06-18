@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! seq-validate <file.seq> [--json] [-v|--verbose] [--profile <name>] [--set field=value]... [--spec <spec.yaml>]
-//! seq-validate --emit-spec-schema | --emit-report-schema
+//! seq-validate --emit-spec-schema | --emit-report-schema | --list-profiles [--json]
 //! ```
 //!
 //! `--emit-spec-schema` / `--emit-report-schema` print the embedded JSON Schema
@@ -40,7 +40,7 @@ struct Cli {
     /// The `.seq` file to validate. Optional only when emitting a schema.
     #[arg(
         value_name = "FILE.seq",
-        required_unless_present_any = ["emit_spec_schema", "emit_report_schema"]
+        required_unless_present_any = ["emit_spec_schema", "emit_report_schema", "list_profiles"]
     )]
     file: Option<PathBuf>,
 
@@ -71,6 +71,10 @@ struct Cli {
     /// Print the `--json` report JSON Schema (schema/report-v1.schema.json) and exit 0.
     #[arg(long)]
     emit_report_schema: bool,
+
+    /// List the bundled scanner profiles and exit 0 (add --json for a machine list).
+    #[arg(long)]
+    list_profiles: bool,
 }
 
 fn main() -> ExitCode {
@@ -85,6 +89,12 @@ fn main() -> ExitCode {
     }
     if cli.emit_report_schema {
         print!("{}", seq_validate_core::REPORT_SCHEMA);
+        return ExitCode::SUCCESS;
+    }
+    // Profile discovery: enumerate the bundled scanner profiles so docs (and an
+    // agent) need not hardcode the list. Honors --json for a machine-readable form.
+    if cli.list_profiles {
+        print!("{}", list_profiles(cli.json));
         return ExitCode::SUCCESS;
     }
 
@@ -109,6 +119,45 @@ fn main() -> ExitCode {
     }
 
     ExitCode::from(report.exit_code() as u8)
+}
+
+/// Render the bundled scanner-profile catalog for `--list-profiles`: a JSON array
+/// of `{name, vendor, description, aliases}` with `--json`, else an aligned human
+/// list. The full set is discoverable here so docs need not enumerate it.
+fn list_profiles(json: bool) -> String {
+    use seq_validate_core::serde_json::{self, Value};
+    let catalog = profile::catalog();
+    if json {
+        let arr: Vec<Value> = catalog
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "name": p.name,
+                    "vendor": p.vendor,
+                    "description": p.description,
+                    "aliases": p.aliases,
+                })
+            })
+            .collect();
+        let mut s = serde_json::to_string_pretty(&Value::Array(arr)).unwrap_or_default();
+        s.push('\n');
+        s
+    } else {
+        let width = catalog.iter().map(|p| p.name.len()).max().unwrap_or(0);
+        let mut s = String::new();
+        for p in catalog {
+            let aliases = if p.aliases.is_empty() {
+                String::new()
+            } else {
+                format!("  (aliases: {})", p.aliases.join(", "))
+            };
+            s.push_str(&format!(
+                "{:width$}  {}{}\n",
+                p.name, p.description, aliases
+            ));
+        }
+        s
+    }
 }
 
 /// Parse the sequence, the optional spec, resolve the profile, run the checks, and

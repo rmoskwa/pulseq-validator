@@ -87,13 +87,18 @@ the `schema_version` field pins the contract and any breaking change bumps it. O
 shape covers both a successful validation and a parse/harness error. The schema is
 embedded in the binary — `seq-validate --emit-report-schema` prints it and exits.
 
+An AI agent or harness driving the validator programmatically should start from
+[`AGENTS.md`](AGENTS.md), which states the JSON/exit-code loop and a worked example.
+
 ### Scanner profiles
 
 `--profile <name>` selects a bundled scanner profile that supplies the hardware
-limits. Two are shipped:
-
-- `ge-premier` — a GE Premier-class 3 T system.
-- `generic-3t` (aliases: `generic`, `default`) — a vendor-neutral 3 T profile.
+limits. List the available profiles with `seq-validate --list-profiles` (add
+`--json` for a machine-readable array). Each profile is one YAML file under
+[`crates/seq-validate-core/profiles/`](crates/seq-validate-core/profiles/), embedded
+into the binary at build time, so adding a scanner is dropping a new file there —
+no code change. `ge-premier` (a GE Premier-class 3 T system) and `generic-3t` (a
+vendor-neutral 3 T profile, aliases `generic` / `default`) ship today.
 
 `--set FIELD=VALUE` overrides a single limit (repeatable), e.g.
 `--set maxGrad=45`. With no `--profile`, no spec `scanner`, and no limits embedded

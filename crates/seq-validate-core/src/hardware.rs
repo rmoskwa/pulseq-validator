@@ -274,12 +274,9 @@ impl Check for Hardware {
 fn no_profile_result() -> CheckResult {
     CheckResult::skip(
         "hardware.profile",
-        format!(
-            "no scanner profile selected and none embedded in [DEFINITIONS]; \
-             hardware/safety checks skipped. Re-run with --profile <name> \
-             (available: {}).",
-            Profile::bundled_names().join(", ")
-        ),
+        "no scanner profile selected and none embedded in [DEFINITIONS]; \
+         hardware/safety checks skipped. Re-run with --profile <name> \
+         (run `seq-validate --list-profiles` to list the available profiles).",
     )
 }
 

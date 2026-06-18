@@ -1,0 +1,28 @@
+# Vendor-neutral 3 T profile. Limits and raster grid are the Pulseq toolbox
+# `mr.opts()` no-argument defaults; only B0 is set to 3 T. Simulation-oriented
+# (no PNS model) and deliberately conservative — not a substitute for a real
+# scanner's safety limits.
+name: generic-3t
+aliases: [generic, default]
+vendor: generic
+description: Vendor-neutral 3 T (Pulseq mr.opts defaults); simulation-oriented
+source: >-
+  Pulseq toolbox mr.opts() no-argument defaults (pulseq matlab/+mr/opts.m):
+  maxGrad 40 mT/m, maxSlew 170 T/m/s, maxB1 20 µT, rasters grad/block 10 µs,
+  rf 1 µs, adc 0.1 µs, zero dead times. B0 set to 3 T. Vendor-neutral and
+  conservative — no PNS model.
+
+b0_t: 3.0
+max_grad_mt_m: 40.0        # mT/m, per axis
+max_slew_t_m_s: 170.0      # T/m/s, per axis
+max_b1_ut: 20.0            # µT
+
+grad_raster_s: 10.0e-6
+rf_raster_s: 1.0e-6
+adc_raster_s: 0.1e-6
+block_raster_s: 10.0e-6
+
+rf_dead_s: 0.0
+rf_ringdown_s: 0.0
+adc_dead_s: 0.0
+# no `pns`: simulation-oriented profile, so the PNS check skips.

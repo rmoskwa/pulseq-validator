@@ -5,7 +5,7 @@
 | **ID** | AF-3 |
 | **Priority** | P2 |
 | **Effort** | S |
-| **Status** | ☐ Not started |
+| **Status** | ☑ Done |
 | **Area** | Documentation |
 
 > Part of the [agent-facing backlog](README.md). See the index for shared context.
