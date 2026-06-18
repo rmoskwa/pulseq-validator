@@ -1,16 +1,22 @@
-# pulseq-validator
+# pulseq-validator — for humans and AI agents
 
 A Rust-first validator for [Pulseq](https://pulseq.github.io/) `*.seq` files.
-Hand it a `.seq` file and it returns a quantitative report of the sequence's
-imaging metrics (TE, TR, flip angle, FOV, matrix, k-space trajectory) together
-with hardware-safety and integrity checks — optionally asserted against an
-expected-value spec for CI gating.
 
-Validation is **static and analytic** (no Bloch simulation): every number comes
+Pass in a `.seq` file ---> return a quantitative report of the sequence's
+imaging metrics (TE, TR, flip angle, FOV, matrix, k-space trajectory) together
+with hardware-safety, vendor scanner compatability, and integrity checks.
+
+Validation is **static and analytic**: every number comes
 from the sequence's own gradients, RF, ADC, and timing, so a report is fast and
 deterministic.
 
-## What it checks
+> [!NOTE] For Humans
+> Use pulseq-validator as a sanity check for what imaging metrics your sequence currently produces.
+
+>[!NOTE] For AI Agents
+> Use pulseq-validator as a feedback and verification loop to incrementally self-correct on pulse sequence coding tasks.
+
+## What is checked and validated
 
 The validator runs four families of checks:
 
@@ -18,7 +24,7 @@ The validator runs four families of checks:
    centre), TR, flip angle, slice count, echo spacing, in-plane resolution, and
    total scan time.
 2. **K-space trajectory** — integrates `k = ∫G·dt` per axis to report extent,
-   coverage, sampling uniformity, and a 2D-vs-3D classification. It is
+   coverage, sampling uniformity, and a 2D-vs-3D classification. Validation is
    dimension-general: it follows permuted / non-Cartesian readouts and applies
    per-block rotation extensions.
 3. **Hardware / safety limits** — gradient amplitude, slew rate, ADC dwell vs.
@@ -33,21 +39,38 @@ the trajectory measurement that applies generally. When the Cartesian model does
 not hold the algebra reports `skip` (a first-class, non-failing result) and the
 trajectory witness carries the geometry.
 
+## How it works
+
+```
+.seq file
+   │
+   ▼
+pulseq-parse ──► interpreted representation ──► seq-validate-core ──► Report ──► human / JSON
+```
+
+- **`crates/pulseq-parse`** parses the `.seq` file and lowers it to an
+  *interpreted* representation — absolute block timing, applied rotations, and
+  decompressed shapes — i.e. what the scanner would actually play out. It targets
+  Pulseq **v1.5** (1.5.0 / 1.5.1); other versions are rejected.
+- **`crates/seq-validate-core`** is the reusable engine library. It wraps the
+  interpreted IR, runs the checks, and produces the result model and stable JSON
+  report. Each check is a discrete unit registered in one place, so checks can be
+  added or extracted without touching the others.
+- **`crates/seq-validate`** is a thin CLI shell over the engine.
+
+The result model is uniform: each check yields
+`{ id, status, measured, expected?, severity, message }`, and only a `fail` drives
+a nonzero exit code. Fix guidance, when a check has any, lives in `message` — there
+is no separate hint/remediation field.
+
 ## Installing
 
 ### Prebuilt binary
 
-Each [GitHub release](https://github.com/rmoskwa/pulseq-validator/releases)
+Check recent [releases here.](https://github.com/rmoskwa/pulseq-validator/releases)
 attaches a self-contained `seq-validate` executable for Linux (static musl),
-macOS (Intel and Apple silicon), and Windows. The binary embeds its scanner
-profiles and schemas, so it has no runtime dependencies — download the archive
-for your platform, extract it, and put `seq-validate` on your `PATH` (or drop it
-into an agent harness's `bin/`):
-
-```console
-$ tar xzf seq-validate-x86_64-unknown-linux-musl.tar.gz
-$ ./seq-validate --version
-```
+macOS (Intel and Apple silicon), and Windows. Download the archive
+for your platform, extract it, and put `seq-validate` on your `PATH` (or drop it somewhere locally)
 
 ### Build from source
 
@@ -73,12 +96,6 @@ $ seq-validate scan.seq --profile ge-premier  # + hardware/safety limits for a s
 $ seq-validate scan.seq --spec expected.yaml  # + hard pass/fail vs an expected spec
 ```
 
-A bundled example sequence lives in `fixtures/`, so you can try it immediately:
-
-```console
-$ seq-validate fixtures/t1_spgr_axial_brain.seq --profile ge-premier
-```
-
 The report groups results by category (integrity, metrics, trajectory, hardware,
 and — when a spec is supplied — spec assertions). Each check has one of four
 statuses:
@@ -92,15 +109,12 @@ statuses:
 
 ### Output modes
 
-The default output is a colorized human report (color is suppressed when stdout
-is not a terminal, and honors the `NO_COLOR` convention). `--verbose` appends each
+The default output is a colorized human report. `--verbose` appends each
 check's structured `measured`/`expected` data inline.
 
 `--json` emits a stable JSON document — the integration contract for Python or
 web consumers, who need no bindings. It conforms to the JSON Schema at
-[`crates/seq-validate-core/schema/report-v1.schema.json`](crates/seq-validate-core/schema/report-v1.schema.json);
-the `schema_version` field pins the contract and any breaking change bumps it. One
-shape covers both a successful validation and a parse/harness error. The schema is
+[`crates/seq-validate-core/schema/report-v1.schema.json`](crates/seq-validate-core/schema/report-v1.schema.json). The schema is
 embedded in the binary — `seq-validate --emit-report-schema` prints it and exits.
 
 An AI agent or harness driving the validator programmatically should start from
@@ -112,9 +126,7 @@ An AI agent or harness driving the validator programmatically should start from
 limits. List the available profiles with `seq-validate --list-profiles` (add
 `--json` for a machine-readable array). Each profile is one YAML file under
 [`crates/seq-validate-core/profiles/`](crates/seq-validate-core/profiles/), embedded
-into the binary at build time, so adding a scanner is dropping a new file there —
-no code change. `ge-premier` (a GE Premier-class 3 T system) and `generic-3t` (a
-vendor-neutral 3 T profile, aliases `generic` / `default`) ship today.
+into the binary at build time.
 
 `--set FIELD=VALUE` overrides a single limit (repeatable), e.g.
 `--set maxGrad=45`. With no `--profile`, no spec `scanner`, and no limits embedded
@@ -144,15 +156,12 @@ oversampling: [2, 1, 1]        # readout oversampling, divided out before compar
 ```
 
 Per-field tolerances default to sensible bands and can be set as `abs`, `rel`, or
-`exact`. Geometry honors the dual-witness rule: each axis is asserted against
-whichever witness measured it.
+`exact`.
 
 The spec input has its own published JSON Schema at
 [`crates/seq-validate-core/schema/spec-v1.schema.json`](crates/seq-validate-core/schema/spec-v1.schema.json)
 (field types, units, the `[x, y, z]` vectors, the `tolerances` shape, and the
-`none`/null opt-out). Like the report schema it is embedded in the binary —
-`seq-validate --emit-spec-schema` prints it and exits, so a harness can learn the
-spec format from the tool alone.
+`none`/null opt-out). `seq-validate --emit-spec-schema` prints it the schema.
 
 ### Exit codes
 
@@ -162,58 +171,11 @@ spec format from the tool alone.
 | `1`  | at least one check failed (including an out-of-tolerance spec) |
 | `2`  | harness/parse error — the file could not be processed          |
 
-## How it works
-
-```
-.seq file
-   │
-   ▼
-pulseq-parse ──► interpreted IR ──► seq-validate-core ──► Report ──► human / JSON
-                  (what the            (checks +            (results
-                     scanner plays)        metrics)               + exit code)
-```
-
-- **`crates/pulseq-parse`** parses the `.seq` file and lowers it to an
-  *interpreted* representation — absolute block timing, applied rotations, and
-  decompressed shapes — i.e. what the scanner would actually play out. It targets
-  Pulseq **v1.5** (1.5.0 / 1.5.1); other versions are rejected. It is a fork of
-  the MIT-licensed `pulseq-rs`, now owned and developed here (see that crate's
-  `NOTICE` for lineage and local changes).
-- **`crates/seq-validate-core`** is the reusable engine library. It wraps the
-  interpreted IR, runs the checks, and produces the result model and stable JSON
-  report. Each check is a discrete unit registered in one place, so checks can be
-  added or extracted without touching the others.
-- **`crates/seq-validate`** is a thin CLI shell over the engine.
-
-The result model is uniform: each check yields
-`{ id, status, measured, expected?, severity, message }`, and only a `fail` drives
-a nonzero exit code. Fix guidance, when a check has any, lives in `message` — there
-is no separate hint/remediation field.
-
-## Correctness
-
-The derived metrics are pinned against a **two-sided oracle**: a small corpus of
-sequences built with *known generation parameters* is checked both by recovering
-those inputs and by cross-checking against Pulseq's own `testReport()` measured
-independently from k-space. The corpus and its committed artifacts live in
-[`corpus/`](corpus/) and run as ordinary tests — no MATLAB is needed to run them
-(only to regenerate them). The rotated / long-train families that the corpus omits
-are covered by the bundled `fixtures/`, whose expected metrics are pinned as
-regression baselines.
-
-Run the full test suite, formatting, and lints exactly as CI does:
-
-```console
-$ cargo test --workspace
-$ cargo fmt --all -- --check
-$ cargo clippy --workspace --all-targets -- -D warnings
-```
-
 ## Scope
 
 Validation is static/analytic only. Bloch/phantom simulation, GPU acceleration,
 a formal plugin boundary, and sequence-family-specific pipelines (diffusion,
-elastography, non-Cartesian) are out of scope here.
+elastography, non-Cartesian) are currently not supported.
 
 ## Repository layout
 
@@ -228,6 +190,4 @@ references/                the Pulseq v1.5.1 specification (PDF)
 
 ## License
 
-Licensed under the [MIT License](LICENSE). The `.seq` parser in
-[`crates/pulseq-parse`](crates/pulseq-parse) is a fork of the MIT-licensed
-`pulseq-rs`; its original MIT attribution is retained in that crate's `LICENSE`.
+Licensed under the [MIT License](LICENSE).
