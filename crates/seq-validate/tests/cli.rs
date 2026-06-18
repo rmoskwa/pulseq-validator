@@ -328,6 +328,24 @@ fn set_non_finite_override_is_a_clear_error_not_a_silent_disable() {
 }
 
 #[test]
+fn list_profiles_enumerates_the_bundled_catalog() {
+    // Human form: needs no .seq file and names the bundled profiles.
+    let (code, stdout, _) = run(&["--list-profiles"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("ge-premier"), "stdout: {stdout}");
+    assert!(stdout.contains("generic-3t"), "stdout: {stdout}");
+
+    // --json form: a machine-readable array carrying name + aliases.
+    let (code, stdout, _) = run(&["--list-profiles", "--json"]);
+    assert_eq!(code, 0);
+    let v: Value = serde_json::from_str(&stdout).expect("--list-profiles --json is valid JSON");
+    let arr = v.as_array().expect("a JSON array");
+    let names: Vec<&str> = arr.iter().filter_map(|p| p["name"].as_str()).collect();
+    assert!(names.contains(&"ge-premier"), "names: {names:?}");
+    assert!(names.contains(&"generic-3t"), "names: {names:?}");
+}
+
+#[test]
 fn verbose_discloses_measured_data_that_the_default_hides() {
     // Default human report: prose messages only, no structured data blob.
     let (code, plain, _) = run(&[FIXTURE, "--profile", "ge-premier"]);

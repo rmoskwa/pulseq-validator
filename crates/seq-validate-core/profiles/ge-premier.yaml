@@ -1,0 +1,28 @@
+# GE SIGNA Premier (HRMW gradient coil).
+#
+# Every number traces to the cited `source`. Editing a number is a curation act:
+# update `source` together with the value (a stale number is a false pass/fail).
+name: ge-premier
+vendor: ge
+description: GE SIGNA Premier (HRMW)
+source: Pulseq documentation for the GE SIGNA Premier (HRMW) gradient coil (2026)
+
+b0_t: 3.0                  # T (informational; γ conversions use ¹H)
+max_grad_mt_m: 50.0        # mT/m, per axis
+max_slew_t_m_s: 150.0      # T/m/s, per axis
+max_b1_ut: 20.0            # µT
+
+grad_raster_s: 4.0e-6
+rf_raster_s: 2.0e-6
+adc_raster_s: 2.0e-6
+block_raster_s: 4.0e-6
+
+rf_dead_s: 100.0e-6
+rf_ringdown_s: 60.0e-6
+adc_dead_s: 0.0
+
+# IEC 60601-2-33:2022 nerve-impulse-response (GE coil parameters).
+pns:
+  chronaxie_s: 642.4e-6
+  rheobase: 17.9
+  alpha: 0.310
