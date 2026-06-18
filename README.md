@@ -1,6 +1,6 @@
 # pulseq-validator — for humans and AI agents
 
-A Rust-first validator for [Pulseq](https://pulseq.github.io/) `*.seq` files.
+An imaging metrics, k-space, hardware, and file integrity validator for [Pulseq](https://pulseq.github.io/) `*.seq` files.
 
 Pass in a `.seq` file ---> return a quantitative report of the sequence's
 imaging metrics (TE, TR, flip angle, FOV, matrix, k-space trajectory) together
@@ -8,7 +8,10 @@ with hardware-safety, vendor scanner compatability, and integrity checks.
 
 
 
-https://github.com/user-attachments/assets/df2e9729-8a82-4503-86ca-05dc9906f20f
+
+https://github.com/user-attachments/assets/49ee723a-dad0-4e59-9a3a-e5fddacb9231
+
+
 
 
 
