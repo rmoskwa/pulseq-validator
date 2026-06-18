@@ -124,25 +124,32 @@ pub struct Spec {
 }
 
 impl Spec {
-    /// Parse a spec from a YAML file path.
-    pub fn from_yaml_file(path: &Path) -> Result<Spec, String> {
+    /// Parse a spec from a YAML file path. Returns the parsed [`Spec`] and any
+    /// non-fatal diagnostics (see [`from_yaml_str`](Spec::from_yaml_str)).
+    pub fn from_yaml_file(path: &Path) -> Result<(Spec, Vec<CheckResult>), String> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| format!("cannot read spec {}: {e}", path.display()))?;
         Spec::from_yaml_str(&text)
     }
 
-    /// Parse a spec from a YAML string. Unknown keys (free-form
-    /// authoring guidance) are ignored; a wrong-typed known key is an error.
-    pub fn from_yaml_str(text: &str) -> Result<Spec, String> {
+    /// Parse a spec from a YAML string, returning the parsed [`Spec`] and any
+    /// non-fatal diagnostics. A top-level key that is neither an asserted field
+    /// nor an allowlisted free-form block is tolerated (it is still ignored, so
+    /// the lenient semantics are unchanged) but surfaced as a
+    /// `spec.unrecognized_fields` `warn` (see [`unrecognized_fields`]): a known
+    /// assertion written under the wrong name (`tr` for `tr_ms`) would otherwise
+    /// silently no-op and the run would pass green. A wrong-typed *known* key is
+    /// still a hard error.
+    pub fn from_yaml_str(text: &str) -> Result<(Spec, Vec<CheckResult>), String> {
         let yaml: Yaml = serde_yaml::from_str(text).map_err(|e| format!("invalid YAML: {e}"))?;
         let map = match &yaml {
             Yaml::Mapping(m) => m,
             // An empty document is a spec that asserts nothing.
-            Yaml::Null => return Ok(Spec::default()),
+            Yaml::Null => return Ok((Spec::default(), Vec::new())),
             _ => return Err("spec must be a YAML mapping of fields".to_string()),
         };
 
-        Ok(Spec {
+        let spec = Spec {
             te_ms: scalar(map, "te_ms")?,
             tr_ms: scalar(map, "tr_ms")?,
             flip_angle_deg: scalar(map, "flip_angle_deg")?,
@@ -153,7 +160,8 @@ impl Spec {
             oversampling: oversampling(map)?,
             scanner: scanner(map)?,
             tolerances: tolerances(map)?,
-        })
+        };
+        Ok((spec, unrecognized_fields(map).into_iter().collect()))
     }
 
     /// Tolerance for a `spec.*` field key (override if the spec set one, else the
@@ -612,15 +620,127 @@ fn finite_nonneg(field: &str, kind: &str, x: f64) -> Result<f64, String> {
     }
 }
 
+// --- unrecognized-key detection ----------------------------------------------
+
+/// The top-level keys that carry an assertion. A typo of one of these (`tr` for
+/// `tr_ms`) silently becomes a no-op under the lenient policy, so an unrecognized
+/// key is matched against this set for a "did you mean" hint.
+const KNOWN_FIELDS: &[&str] = &[
+    "te_ms",
+    "tr_ms",
+    "flip_angle_deg",
+    "n_slices",
+    "echo_spacing_ms",
+    "fov_mm",
+    "matrix",
+    "oversampling",
+    "scanner",
+    "tolerances",
+];
+
+/// Conventional free-form blocks an agent may embed for authoring guidance; these
+/// are deliberate, so they never warn (see the lenient policy in the module docs).
+const FREEFORM_ALLOWLIST: &[&str] = &["name", "acquisition", "notes"];
+
+/// Surface top-level spec keys that are neither an asserted field nor an
+/// allowlisted free-form block as a single `spec.unrecognized_fields` `warn`.
+///
+/// The spec parser ignores any key it does not recognize — deliberate, so an
+/// agent can embed free-form guidance. The sharp failure mode is a *known
+/// assertion under the wrong name* (`tr: 400` for `tr_ms`, `flipAngle` for
+/// `flip_angle_deg`): it silently becomes a no-op and the run passes green, a
+/// typo indistinguishable from a satisfied assertion. This warning makes the
+/// typo visible without changing the lenient semantics or the exit code (a
+/// `warn` does not). Each unknown key carries a nearest-match suggestion when a
+/// known field is close. The `measured` value is the machine-readable list of
+/// the unknown keys.
+fn unrecognized_fields(map: &Mapping) -> Option<CheckResult> {
+    let unknown: Vec<String> = map
+        .keys()
+        .filter_map(Yaml::as_str)
+        .filter(|k| !KNOWN_FIELDS.contains(k) && !FREEFORM_ALLOWLIST.contains(k))
+        .map(String::from)
+        .collect();
+    if unknown.is_empty() {
+        return None;
+    }
+    let listed = unknown
+        .iter()
+        .map(|k| match nearest_known(k) {
+            Some(s) => format!("`{k}` (did you mean `{s}`?)"),
+            None => format!("`{k}`"),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    let msg = format!(
+        "unrecognized spec key(s), ignored and not asserted: {listed}. A known \
+         assertion written under the wrong name silently does nothing; put \
+         free-form notes under a `notes:` block."
+    );
+    Some(CheckResult::warn("spec.unrecognized_fields", msg).with_measured(Value::from(unknown)))
+}
+
+/// The asserted field nearest an unrecognized key, for the "did you mean" hint,
+/// or `None` when nothing is close (a genuinely free-form key). Matches a dropped
+/// unit suffix (`tr` → `tr_ms`, `flipAngle` → `flip_angle_deg`) by prefix
+/// containment and a small typo by edit distance, both over an alphanumeric-only,
+/// lowercased form so separators and case do not matter.
+fn nearest_known(key: &str) -> Option<&'static str> {
+    let norm = |s: &str| -> String {
+        s.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .collect::<String>()
+            .to_ascii_lowercase()
+    };
+    let k = norm(key);
+    if k.is_empty() {
+        return None;
+    }
+    KNOWN_FIELDS
+        .iter()
+        .map(|&cand| {
+            let c = norm(cand);
+            // A prefix match (a dropped unit suffix) is the strongest signal; score
+            // it 0 so it wins over any edit-distance match.
+            let dist = if c.starts_with(&k) || k.starts_with(&c) {
+                0
+            } else {
+                levenshtein(&k, &c)
+            };
+            (cand, dist)
+        })
+        .min_by_key(|&(_, d)| d)
+        .filter(|&(_, d)| d <= 2)
+        .map(|(cand, _)| cand)
+}
+
+/// Classic two-row Levenshtein edit distance over the short, normalized keys.
+#[allow(clippy::indexing_slicing)] // prev/curr are sized b.len()+1; j ∈ 0..b.len()
+fn levenshtein(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut curr: Vec<usize> = vec![0; b.len() + 1];
+    for (i, ca) in a.chars().enumerate() {
+        curr[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let sub = prev[j] + usize::from(ca != cb);
+            curr[j + 1] = sub.min(prev[j + 1] + 1).min(curr[j] + 1);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+    prev[b.len()]
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)]
     use super::*;
+    use crate::result::Status;
 
     #[test]
     fn none_and_absent_fields_are_not_asserted() {
         // `none`, YAML null, and absence all collapse to "not asserted".
-        let s = Spec::from_yaml_str("te_ms: none\ntr_ms: ~\nflip_angle_deg: 15\n").unwrap();
+        let (s, _) = Spec::from_yaml_str("te_ms: none\ntr_ms: ~\nflip_angle_deg: 15\n").unwrap();
         assert_eq!(s.te_ms, None);
         assert_eq!(s.tr_ms, None);
         assert_eq!(s.flip_angle_deg, Some(15.0));
@@ -628,21 +748,51 @@ mod tests {
     }
 
     #[test]
-    fn unknown_keys_and_nested_blocks_are_ignored() {
-        // Real-world specs often carry free-form `acquisition:` / `notes:` blocks and a
-        // `name:`; none of them are gated, so the spec must load and ignore them.
+    fn allowlisted_freeform_blocks_parse_and_dont_warn() {
+        // Real-world specs carry conventional free-form `name:` / `acquisition:` /
+        // `notes:` blocks; all are allowlisted, so the spec loads, the assertion
+        // keys still parse, and no unrecognized-fields warning fires.
         let yaml = "\
 name: propeller
-family: fse-propeller
 te_ms: 84
 acquisition:\n  readout: fse\n  etl: 16\nnotes: >\n  free text\n";
-        let s = Spec::from_yaml_str(yaml).unwrap();
+        let (s, warnings) = Spec::from_yaml_str(yaml).unwrap();
         assert_eq!(s.te_ms, Some(84.0));
+        assert!(
+            warnings.is_empty(),
+            "allowlisted free-form blocks are silent"
+        );
+    }
+
+    #[test]
+    fn typod_assertion_key_warns_with_a_suggestion() {
+        // `tr` is a typo of `tr_ms`: it does not assert (lenient: tr_ms stays
+        // unset), but it must warn — silently no-opping is the failure mode.
+        let (s, warnings) = Spec::from_yaml_str("tr: 400\nflip_angle_deg: 80\n").unwrap();
+        assert_eq!(s.tr_ms, None);
+        assert_eq!(warnings.len(), 1);
+        let w = &warnings[0];
+        assert_eq!(w.id, "spec.unrecognized_fields");
+        assert_eq!(w.status, Status::Warn);
+        assert!(w.message.contains("tr"), "names the key: {}", w.message);
+        assert!(
+            w.message.contains("tr_ms"),
+            "suggests the near field: {}",
+            w.message
+        );
+    }
+
+    #[test]
+    fn clean_spec_emits_no_unrecognized_warning() {
+        // Only recognized assertion keys → no diagnostics at all.
+        let (_, warnings) =
+            Spec::from_yaml_str("te_ms: 4\ntr_ms: 400\nmatrix: [192, 192, 1]\n").unwrap();
+        assert!(warnings.is_empty());
     }
 
     #[test]
     fn geometry_vectors_and_oversampling_parse() {
-        let s = Spec::from_yaml_str(
+        let (s, _) = Spec::from_yaml_str(
             "matrix: [192, 192, 1]\nfov_mm: [240, 240, 5]\noversampling: [2, 1, 1]\n",
         )
         .unwrap();
@@ -653,7 +803,8 @@ acquisition:\n  readout: fse\n  etl: 16\nnotes: >\n  free text\n";
 
     #[test]
     fn none_geometry_vector_disables_all_axes() {
-        let s = Spec::from_yaml_str("matrix: none\nfov_mm: none\noversampling: none\n").unwrap();
+        let (s, _) =
+            Spec::from_yaml_str("matrix: none\nfov_mm: none\noversampling: none\n").unwrap();
         assert_eq!(s.matrix, [None, None, None]);
         assert_eq!(s.fov_mm, [None, None, None]);
         assert_eq!(s.oversampling, [1.0, 1.0, 1.0]);
@@ -670,7 +821,7 @@ acquisition:\n  readout: fse\n  etl: 16\nnotes: >\n  free text\n";
 
     #[test]
     fn tolerance_override_parses_and_applies() {
-        let s =
+        let (s, _) =
             Spec::from_yaml_str("te_ms: 10\ntolerances:\n  te_ms: {abs: 1.0}\n  matrix_x: exact\n")
                 .unwrap();
         assert_eq!(s.tolerance_for("te_ms"), Tolerance::Abs(1.0));
