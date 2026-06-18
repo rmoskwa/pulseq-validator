@@ -87,6 +87,9 @@ the `schema_version` field pins the contract and any breaking change bumps it. O
 shape covers both a successful validation and a parse/harness error. The schema is
 embedded in the binary — `seq-validate --emit-report-schema` prints it and exits.
 
+An AI agent or harness driving the validator programmatically should start from
+[`AGENTS.md`](AGENTS.md), which states the JSON/exit-code loop and a worked example.
+
 ### Scanner profiles
 
 `--profile <name>` selects a bundled scanner profile that supplies the hardware
