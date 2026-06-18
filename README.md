@@ -10,11 +10,11 @@ Validation is **static and analytic**: every number comes
 from the sequence's own gradients, RF, ADC, and timing, so a report is fast and
 deterministic.
 
-> [!NOTE] For Humans
-> Use pulseq-validator as a sanity check for what imaging metrics your sequence currently produces.
+> [!NOTE] 
+> Humans: Use pulseq-validator as a sanity check for what imaging metrics your sequence currently produces.
 
->[!NOTE] For AI Agents
-> Use pulseq-validator as a feedback and verification loop to incrementally self-correct on pulse sequence coding tasks.
+>[!NOTE] 
+> AI Agents: Use pulseq-validator as a feedback and verification loop to incrementally self-correct on pulse sequence coding tasks.
 
 ## What is checked and validated
 
