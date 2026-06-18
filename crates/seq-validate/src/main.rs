@@ -85,13 +85,14 @@ fn build_report(cli: &Cli, file_label: String) -> Report {
         Err(err) => return Report::harness_error(file_label, err.to_string()),
     };
 
-    // Load the spec first: its `scanner` field can select the profile.
-    let spec = match cli.spec.as_deref() {
+    // Load the spec first: its `scanner` field can select the profile. Parsing
+    // also yields non-fatal diagnostics (the `spec.unrecognized_fields` warning).
+    let (spec, spec_warnings) = match cli.spec.as_deref() {
         Some(path) => match Spec::from_yaml_file(path) {
-            Ok(spec) => Some(spec),
+            Ok((spec, warnings)) => (Some(spec), warnings),
             Err(err) => return Report::harness_error(file_label, format!("spec: {err}")),
         },
-        None => None,
+        None => (None, Vec::new()),
     };
 
     let profile = match resolve_profile(cli, &seq, spec.as_ref().and_then(|s| s.scanner.as_deref()))
@@ -104,6 +105,10 @@ fn build_report(cli: &Cli, file_label: String) -> Report {
         seq: &seq,
         profile: profile.as_ref(),
     });
+    // Spec-parse diagnostics lead the Spec section (they precede the assertions);
+    // `Measurements::from_results` only reads `metrics.*`/`trajectory.*`, so the
+    // warning's presence here does not affect the assertions.
+    results.extend(spec_warnings);
     if let Some(spec) = &spec {
         // Spec assertions reuse the measured values from the file-only checks,
         // read through the typed `Measurements` surface.

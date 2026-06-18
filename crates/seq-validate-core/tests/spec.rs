@@ -43,7 +43,7 @@ fn status_of(results: &[CheckResult], id: &str) -> Option<Status> {
 fn cartesian_spec_passes_with_oversampling_divided_out() {
     let file = file_results("t1_spgr_axial_brain.seq");
     // The committed example spec (physical 384/480 ÷ oversampling 2 = 192/240).
-    let spec = Spec::from_yaml_str(
+    let (spec, _) = Spec::from_yaml_str(
         "te_ms: 4.008\ntr_ms: 400.048\nflip_angle_deg: 80\nn_slices: 44\n\
          matrix: [192, 192, 1]\nfov_mm: [240, 240]\noversampling: [2, 1, 1]\n",
     )
@@ -75,7 +75,7 @@ fn cartesian_spec_passes_with_oversampling_divided_out() {
 fn out_of_tolerance_field_fails_only_itself() {
     let file = file_results("t1_spgr_axial_brain.seq");
     // tr is perturbed well past its 0.1 ms band; flip stays correct.
-    let spec = Spec::from_yaml_str("tr_ms: 250.0\nflip_angle_deg: 80\n").unwrap();
+    let (spec, _) = Spec::from_yaml_str("tr_ms: 250.0\nflip_angle_deg: 80\n").unwrap();
     let spec_results = spec.assert(&Measurements::from_results(&file));
 
     assert_eq!(status_of(&spec_results, "spec.tr_ms"), Some(Status::Fail));
@@ -98,7 +98,7 @@ fn unmeasurable_field_skips_never_fails() {
     let file = file_results("t1_spgr_axial_brain.seq");
     // SPGR is single-echo: echo spacing is not measurable. Asserting it must
     // `skip`, not `fail` (a first-class non-failing result).
-    let spec = Spec::from_yaml_str("echo_spacing_ms: 5.0\n").unwrap();
+    let (spec, _) = Spec::from_yaml_str("echo_spacing_ms: 5.0\n").unwrap();
     let spec_results = spec.assert(&Measurements::from_results(&file));
     let esp = spec_results
         .iter()
@@ -117,13 +117,14 @@ fn tolerance_override_widens_the_band() {
     // tr is ~400.05 ms; expecting 400.6 is out of the default 0.1 ms band but
     // inside an overridden 1 ms band.
     let m = Measurements::from_results(&file);
-    let strict = Spec::from_yaml_str("tr_ms: 400.6\n").unwrap();
+    let (strict, _) = Spec::from_yaml_str("tr_ms: 400.6\n").unwrap();
     assert_eq!(
         status_of(&strict.assert(&m), "spec.tr_ms"),
         Some(Status::Fail)
     );
 
-    let loose = Spec::from_yaml_str("tr_ms: 400.6\ntolerances:\n  tr_ms: {abs: 1.0}\n").unwrap();
+    let (loose, _) =
+        Spec::from_yaml_str("tr_ms: 400.6\ntolerances:\n  tr_ms: {abs: 1.0}\n").unwrap();
     assert_eq!(
         status_of(&loose.assert(&m), "spec.tr_ms"),
         Some(Status::Pass)
@@ -141,7 +142,7 @@ fn echo_train_geometry_uses_the_trajectory_witness() {
         Some(Status::Skip),
         "EPI: param-algebra defers"
     );
-    let spec = Spec::from_yaml_str("matrix: [64, 64, 1]\n").unwrap();
+    let (spec, _) = Spec::from_yaml_str("matrix: [64, 64, 1]\n").unwrap();
     let spec_results = spec.assert(&Measurements::from_results(&file));
 
     let my = spec_results

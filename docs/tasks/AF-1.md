@@ -5,7 +5,7 @@
 | **ID** | AF-1 |
 | **Priority** | P1 (highest leverage) |
 | **Effort** | S–M |
-| **Status** | ☐ Not started |
+| **Status** | ☑ Done |
 | **Area** | Spec input contract |
 
 > Part of the [agent-facing backlog](README.md). See the index for shared context.

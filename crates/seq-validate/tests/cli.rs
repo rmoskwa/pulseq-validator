@@ -154,6 +154,38 @@ fn omitted_spec_fields_are_silently_not_checked() {
 }
 
 #[test]
+fn typod_spec_key_warns_without_changing_exit_code() {
+    // `tr` is a typo of `tr_ms`; under the lenient policy it silently no-ops, so
+    // the run must surface a `spec.unrecognized_fields` warning naming the key and
+    // its near match. The warning does not change the exit code (te_ms still passes).
+    let path = format!("{}/typo.yaml", env!("CARGO_TARGET_TMPDIR"));
+    std::fs::write(&path, "te_ms: 4.008\ntr: 400\n").unwrap();
+    let (code, stdout, _) = run(&[FIXTURE, "--spec", &path]);
+    assert_eq!(code, 0, "a warn does not change the exit code: {stdout}");
+    assert!(
+        stdout.contains("spec.unrecognized_fields"),
+        "the unrecognized key is surfaced: {stdout}"
+    );
+    assert!(
+        stdout.contains("tr_ms"),
+        "the warning suggests the near field: {stdout}"
+    );
+
+    // The warning is a `warn` (not a fail) in the JSON, with the key listed in `measured`.
+    let (_, json, _) = run(&[FIXTURE, "--spec", &path, "--json"]);
+    let v: Value = serde_json::from_str(&json).expect("valid JSON");
+    assert_eq!(v["summary"]["fail"], 0, "a typo is a warn, not a fail");
+    let warn = v["results"]
+        .as_array()
+        .expect("results")
+        .iter()
+        .find(|r| r["id"] == "spec.unrecognized_fields")
+        .expect("the warning result is present");
+    assert_eq!(warn["status"], "warn");
+    assert_eq!(warn["measured"][0], "tr");
+}
+
+#[test]
 fn missing_spec_file_is_a_harness_error_exit_two() {
     let (code, _, _) = run(&[FIXTURE, "--spec", "definitely-no-such-spec.yaml"]);
     assert_eq!(code, 2, "an unreadable spec is a harness error, not a fail");
