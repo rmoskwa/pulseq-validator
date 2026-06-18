@@ -35,6 +35,22 @@ trajectory witness carries the geometry.
 
 ## Installing
 
+### Prebuilt binary
+
+Each [GitHub release](https://github.com/rmoskwa/pulseq-validator/releases)
+attaches a self-contained `seq-validate` executable for Linux (static musl),
+macOS (Intel and Apple silicon), and Windows. The binary embeds its scanner
+profiles and schemas, so it has no runtime dependencies — download the archive
+for your platform, extract it, and put `seq-validate` on your `PATH` (or drop it
+into an agent harness's `bin/`):
+
+```console
+$ tar xzf seq-validate-x86_64-unknown-linux-musl.tar.gz
+$ ./seq-validate --version
+```
+
+### Build from source
+
 The project is a standard Cargo workspace; building from source needs a recent
 stable Rust toolchain ([rustup](https://rustup.rs/)).
 
@@ -212,7 +228,6 @@ references/                the Pulseq v1.5.1 specification (PDF)
 
 ## License
 
-Licensed under either of MIT or Apache-2.0, at your option. The `.seq` parser in
+Licensed under the [MIT License](LICENSE). The `.seq` parser in
 [`crates/pulseq-parse`](crates/pulseq-parse) is a fork of the MIT-licensed
-`pulseq-rs`; its MIT attribution is retained in that crate's `LICENSE` and
-`NOTICE`.
+`pulseq-rs`; its original MIT attribution is retained in that crate's `LICENSE`.

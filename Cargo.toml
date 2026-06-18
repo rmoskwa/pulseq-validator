@@ -15,7 +15,7 @@ members = [
 
 [workspace.package]
 edition = "2024"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 # Footgun lints, shared by every crate via `lints.workspace = true`. These were
 # originally local to pulseq-parse (the fork); promoted here so the engine and
