@@ -6,6 +6,12 @@ Pass in a `.seq` file ---> return a quantitative report of the sequence's
 imaging metrics (TE, TR, flip angle, FOV, matrix, k-space trajectory) together
 with hardware-safety, vendor scanner compatability, and integrity checks.
 
+
+
+https://github.com/user-attachments/assets/df2e9729-8a82-4503-86ca-05dc9906f20f
+
+
+
 Validation is **static and analytic**: every number comes
 from the sequence's own gradients, RF, ADC, and timing, so a report is fast and
 deterministic.
