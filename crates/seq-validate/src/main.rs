@@ -9,12 +9,14 @@
 //!
 //! ```text
 //! seq-validate <file.seq> [--json] [-v|--verbose] [--profile <name>] [--set field=value]... [--spec <spec.yaml>]
-//! seq-validate --emit-spec-schema | --emit-report-schema | --list-profiles [--json]
+//! seq-validate --emit-spec-schema | --emit-report-schema | --list-profiles | --list-checks [--json]
 //! ```
 //!
 //! `--emit-spec-schema` / `--emit-report-schema` print the embedded JSON Schema
 //! for the `--spec` input / the `--json` report output and exit 0, so a harness
 //! can learn either contract from the binary alone (no `.seq` file required).
+//! `--list-checks` enumerates the check catalog (every result `id` + a one-liner,
+//! grouped by category), so an agent can discover the check space the same way.
 //!
 //! `--profile` selects the scanner [`Profile`] for the hardware/safety checks;
 //! `--set field=value` overrides one of its limits (repeatable). With no
@@ -30,7 +32,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Parser;
-use seq_validate_core::{Measurements, Profile, Report, Sequence, Spec, checks, profile, render};
+use seq_validate_core::{
+    Category, Measurements, Profile, Report, Sequence, Spec, checks, profile, render,
+};
 
 /// Validate a Pulseq `.seq` file: report its metrics, integrity, and safety, and
 /// optionally assert them against an expected-value spec.
@@ -40,7 +44,7 @@ struct Cli {
     /// The `.seq` file to validate. Optional only when emitting a schema.
     #[arg(
         value_name = "FILE.seq",
-        required_unless_present_any = ["emit_spec_schema", "emit_report_schema", "list_profiles"]
+        required_unless_present_any = ["emit_spec_schema", "emit_report_schema", "list_profiles", "list_checks"]
     )]
     file: Option<PathBuf>,
 
@@ -75,6 +79,10 @@ struct Cli {
     /// List the bundled scanner profiles and exit 0 (add --json for a machine list).
     #[arg(long)]
     list_profiles: bool,
+
+    /// List the check catalog (every result id + one-liner, by category) and exit 0 (add --json).
+    #[arg(long)]
+    list_checks: bool,
 }
 
 fn main() -> ExitCode {
@@ -95,6 +103,12 @@ fn main() -> ExitCode {
     // agent) need not hardcode the list. Honors --json for a machine-readable form.
     if cli.list_profiles {
         print!("{}", list_profiles(cli.json));
+        return ExitCode::SUCCESS;
+    }
+    // Check discovery: enumerate the result `id`s (and their one-liners) the engine
+    // can emit, so an agent that sees a lone `id` can look up the whole catalog.
+    if cli.list_checks {
+        print!("{}", list_checks(cli.json));
         return ExitCode::SUCCESS;
     }
 
@@ -155,6 +169,53 @@ fn list_profiles(json: bool) -> String {
                 "{:width$}  {}{}\n",
                 p.name, p.description, aliases
             ));
+        }
+        s
+    }
+}
+
+/// Render the check catalog for `--list-checks`: a JSON array of
+/// `{id, category, summary}` with `--json`, else an aligned human list grouped by
+/// category. Built from `checks::catalog()` so it never drifts from the registry;
+/// an agent can enumerate the check space without a `.seq` file.
+fn list_checks(json: bool) -> String {
+    use seq_validate_core::serde_json::{self, Value};
+    let catalog = checks::catalog();
+    if json {
+        let mut arr: Vec<Value> = Vec::new();
+        for &cat in Category::DISPLAY_ORDER {
+            for d in catalog.iter().filter(|d| Category::from_id(&d.id) == cat) {
+                arr.push(serde_json::json!({
+                    "id": d.id,
+                    "category": cat.slug(),
+                    "summary": d.summary,
+                }));
+            }
+        }
+        let mut s = serde_json::to_string_pretty(&Value::Array(arr)).unwrap_or_default();
+        s.push('\n');
+        s
+    } else {
+        let width = catalog.iter().map(|d| d.id.len()).max().unwrap_or(0);
+        let mut s = String::new();
+        for &cat in Category::DISPLAY_ORDER {
+            let mut group = catalog
+                .iter()
+                .filter(|d| Category::from_id(&d.id) == cat)
+                .peekable();
+            if group.peek().is_none() {
+                continue;
+            }
+            s.push_str(cat.title());
+            s.push('\n');
+            for d in group {
+                s.push_str(&format!("  {:width$}  {}\n", d.id, d.summary));
+            }
+            s.push('\n');
+        }
+        // Drop the trailing blank line left by the last category group.
+        if s.ends_with("\n\n") {
+            s.pop();
         }
         s
     }

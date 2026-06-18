@@ -32,7 +32,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::checks::{Check, CheckCtx};
+use crate::checks::{Check, CheckCtx, CheckDoc};
 use crate::ir::{Adc, Rf, RfUse, Sequence};
 use crate::result::{Category, CheckResult};
 
@@ -229,6 +229,34 @@ impl Check for DerivedMetrics {
         // Unused: this check emits explicit per-metric ids below rather than the
         // default `<category>.<name>`. Kept distinct for the trait contract.
         "derived"
+    }
+
+    fn docs(&self) -> Vec<CheckDoc> {
+        // This check emits one result per metric, so it documents each id itself
+        // rather than relying on the single-id default (in run() order).
+        vec![
+            CheckDoc::new("metrics.scan_time", "Total sequence duration [s]."),
+            CheckDoc::new(
+                "metrics.n_slices",
+                "Count of distinct excitation frequency offsets (slice/slab count).",
+            ),
+            CheckDoc::new(
+                "metrics.tr",
+                "Repetition time: median interval between successive excitations of the same slice [s].",
+            ),
+            CheckDoc::new(
+                "metrics.flip_angle",
+                "Median nominal excitation flip angle [deg].",
+            ),
+            CheckDoc::new(
+                "metrics.te",
+                "Effective echo time: k-space-centre echo minus the excitation RF centre [s]; skips with no readout after an excitation.",
+            ),
+            CheckDoc::new(
+                "metrics.echo_spacing",
+                "Median centre-to-centre echo interval [s]; skips for a single-echo sequence.",
+            ),
+        ]
     }
 
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {

@@ -21,6 +21,7 @@ $ seq-validate scan.seq --profile ge-premier --json     # + hardware/safety limi
 $ seq-validate scan.seq --spec expected.yaml --json     # + hard pass/fail vs an expected spec
 $ seq-validate scan.seq --profile ge-premier --set maxGrad=45 --json   # override one limit (repeatable)
 $ seq-validate --list-profiles --json                    # enumerate the bundled scanner profiles and exit
+$ seq-validate --list-checks --json                      # enumerate the check catalog (every result id + one-liner) and exit
 $ seq-validate --emit-report-schema                      # print the report JSON Schema and exit
 $ seq-validate --emit-spec-schema                        # print the spec JSON Schema and exit
 ```
@@ -61,7 +62,10 @@ also embedded in the binary (`seq-validate --emit-report-schema`).
 
 ## Routing on `id` + `status`
 
-Each `id` is `category.check`. Branch on the prefix to decide who handles it:
+Each `id` is `category.check`. For the full list of result ids with a one-line
+description of each — what it verifies and when it skips — run
+`seq-validate --list-checks --json` (it needs no `.seq` file). Branch on the
+prefix to decide who handles it:
 
 | prefix | meaning |
 |---|---|

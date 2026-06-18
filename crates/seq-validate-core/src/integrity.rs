@@ -75,6 +75,9 @@ impl Check for RasterAlignment {
     fn name(&self) -> &'static str {
         "raster_alignment"
     }
+    fn summary(&self) -> &'static str {
+        "Every event timing lands on its own declared raster; fails when any edge is off-raster."
+    }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let seq = ctx.seq;
         let tr = seq.time_raster;
@@ -152,6 +155,9 @@ impl Check for Timing {
     fn name(&self) -> &'static str {
         "timing"
     }
+    fn summary(&self) -> &'static str {
+        "Computed total duration matches the TotalDuration definition; warns on a mismatch, skips when it is not declared."
+    }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let seq = ctx.seq;
         let id = self.id();
@@ -205,6 +211,9 @@ impl Check for EventLegality {
     fn name(&self) -> &'static str {
         "event_legality"
     }
+    fn summary(&self) -> &'static str {
+        "No block transmits and receives at once (RF during ADC); warns when one does."
+    }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let seq = ctx.seq;
         let id = self.id();
@@ -250,6 +259,9 @@ impl Check for DeadTime {
     fn name(&self) -> &'static str {
         "dead_time"
     }
+    fn summary(&self) -> &'static str {
+        "RF ring-down / ADC dead-time are scanner-specific; always skips here and defers to hardware.dead_time when a profile is given."
+    }
     fn run(&self, _ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         vec![CheckResult::skip(
             self.id(),
@@ -270,6 +282,9 @@ impl Check for VersionCheck {
     }
     fn name(&self) -> &'static str {
         "version"
+    }
+    fn summary(&self) -> &'static str {
+        "The [VERSION] is one the checks understand (Pulseq 1.5.x); warns on an unrecognized version."
     }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let v = &ctx.seq.version;
@@ -297,6 +312,9 @@ impl Check for SignatureCheck {
     }
     fn name(&self) -> &'static str {
         "signature"
+    }
+    fn summary(&self) -> &'static str {
+        "The [SIGNATURE] md5, if present, recomputes; warns on a mismatch, skips when absent or the algorithm is unsupported."
     }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let id = self.id();
@@ -347,6 +365,9 @@ impl Check for Definitions {
     }
     fn name(&self) -> &'static str {
         "definitions"
+    }
+    fn summary(&self) -> &'static str {
+        "Required raster times are positive and FOV is present and positive; fails on a non-positive raster/FOV, warns when FOV is absent."
     }
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
         let seq = ctx.seq;

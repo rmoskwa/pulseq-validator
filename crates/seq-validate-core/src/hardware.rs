@@ -32,7 +32,7 @@
 
 use serde_json::json;
 
-use crate::checks::{Check, CheckCtx};
+use crate::checks::{Check, CheckCtx, CheckDoc};
 use crate::ir::{Block, DEFAULT_LARMOR_HZ, Gradient, Sequence};
 use crate::profile::{Pns, Profile};
 use crate::result::{Category, CheckResult};
@@ -249,6 +249,41 @@ impl Check for Hardware {
     fn name(&self) -> &'static str {
         // Unused: this check emits explicit per-limit ids, not `<category>.<name>`.
         "hardware"
+    }
+
+    fn docs(&self) -> Vec<CheckDoc> {
+        // One result per hardware limit (in run() order). With no profile only
+        // `hardware.profile` is emitted, but the whole limit space is documented.
+        vec![
+            CheckDoc::new(
+                "hardware.profile",
+                "Names the scanner profile assumed (its limits and source); skips when no profile is selected or embedded.",
+            ),
+            CheckDoc::new(
+                "hardware.gradient_amplitude",
+                "Per-axis peak gradient within the profile's maxGrad; fails when exceeded.",
+            ),
+            CheckDoc::new(
+                "hardware.slew_rate",
+                "Per-axis peak slew within the profile's maxSlew; fails when exceeded.",
+            ),
+            CheckDoc::new(
+                "hardware.adc_dwell",
+                "ADC dwell divides the scanner's ADC raster; fails when it does not, skips with no ADC or no raster.",
+            ),
+            CheckDoc::new(
+                "hardware.rf_b1",
+                "Peak B1 within the profile's B1max; skips when the profile sets no B1 limit or the sequence has no RF.",
+            ),
+            CheckDoc::new(
+                "hardware.dead_time",
+                "RF dead/ring-down and ADC dead-time satisfy the profile; fails on a violation.",
+            ),
+            CheckDoc::new(
+                "hardware.pns",
+                "Approximate per-ramp IEC PNS estimate; warns past normal (80%)/first-controlled (100%) modes, never fails; skips without a PNS model.",
+            ),
+        ]
     }
 
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult> {

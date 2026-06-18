@@ -47,8 +47,49 @@ pub trait Check {
         format!("{}.{}", self.category().slug(), self.name())
     }
 
+    /// A one-line catalog summary: what this check verifies and when it skips.
+    /// Used by the default [`docs`](Check::docs) for the common single-result
+    /// check; an aggregate check that emits several distinct ids leaves this empty
+    /// and overrides `docs()` to describe each id instead.
+    fn summary(&self) -> &'static str {
+        ""
+    }
+
+    /// The catalog entries this check contributes — one [`CheckDoc`] per stable
+    /// result `id` it can emit. The default pairs [`id`](Check::id) with
+    /// [`summary`](Check::summary) for a one-result check; a check that emits
+    /// several ids (the metrics / trajectory / hardware aggregates) overrides this
+    /// to enumerate each id and its own one-liner. [`catalog`] collects these
+    /// across the registry for `--list-checks`.
+    fn docs(&self) -> Vec<CheckDoc> {
+        vec![CheckDoc::new(self.id(), self.summary())]
+    }
+
     /// Inspect the context and emit results.
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult>;
+}
+
+/// One entry in the discoverable check catalog: a stable result `id` and a
+/// one-line `summary` of what it verifies (and when it skips). Built from the
+/// [`registry`] by [`catalog`] and surfaced by `seq-validate --list-checks`, so an
+/// agent can enumerate the check space rather than reverse-engineer it from a lone
+/// result `id`.
+#[derive(Debug, Clone)]
+pub struct CheckDoc {
+    /// The stable result id (e.g. `trajectory.geometry_agreement`).
+    pub id: String,
+    /// One line: what the check verifies, and when it skips.
+    pub summary: &'static str,
+}
+
+impl CheckDoc {
+    /// A catalog entry pairing a result `id` with its one-line `summary`.
+    pub fn new(id: impl Into<String>, summary: &'static str) -> Self {
+        CheckDoc {
+            id: id.into(),
+            summary,
+        }
+    }
 }
 
 /// The checks the engine runs, in report order.
@@ -69,4 +110,12 @@ pub fn registry() -> Vec<Box<dyn Check>> {
 /// registry order.
 pub fn run_all(ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
     registry().iter().flat_map(|check| check.run(ctx)).collect()
+}
+
+/// The discoverable check catalog: one [`CheckDoc`] per result `id` the registry
+/// can emit, in registry order. Generated from [`registry`] — each check declares
+/// its own entries — so it never drifts from what the engine runs. The CLI's
+/// `--list-checks` groups these by [`Category`] for display.
+pub fn catalog() -> Vec<CheckDoc> {
+    registry().iter().flat_map(|check| check.docs()).collect()
 }
