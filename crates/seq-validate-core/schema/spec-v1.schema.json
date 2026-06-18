@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rmoskwa/pulseq-validator/schema/spec-v1.schema.json",
+  "title": "seq-validate expected-value spec",
+  "description": "The optional YAML spec passed to `seq-validate --spec <spec.yaml>`: the expected imaging metrics a sequence is asserted against. This is the input contract (the report is the output contract; see report-v1.schema.json). Validate a spec by converting the YAML document to JSON first — YAML maps cleanly (mappings to objects, sequences to arrays, null to null). The assertion policy is lenient: only the fields present are asserted, and every numeric field also accepts an explicit opt-out (the literal `none`, any case, or null). The tool itself tolerates unknown top-level keys — it warns rather than rejects — but this schema enumerates the recognized contract, so a key outside it is flagged here as it would be warned there. Put free-form authoring notes under `name`, `acquisition`, or `notes`.",
+  "type": ["object", "null"],
+  "additionalProperties": false,
+  "properties": {
+    "te_ms": {
+      "description": "Effective (k-centre) echo time, in milliseconds. Default tolerance: abs 0.1 ms.",
+      "$ref": "#/$defs/numberOrOptOut"
+    },
+    "tr_ms": {
+      "description": "Repetition time, in milliseconds. Default tolerance: abs 0.1 ms.",
+      "$ref": "#/$defs/numberOrOptOut"
+    },
+    "flip_angle_deg": {
+      "description": "Excitation flip angle, in degrees. Default tolerance: rel 5%.",
+      "$ref": "#/$defs/numberOrOptOut"
+    },
+    "n_slices": {
+      "description": "Slice/slab count (distinct excitation frequency offsets). Default tolerance: exact.",
+      "$ref": "#/$defs/integerOrOptOut"
+    },
+    "echo_spacing_ms": {
+      "description": "Echo spacing, in milliseconds (echo trains only). Default tolerance: abs 0.1 ms.",
+      "$ref": "#/$defs/numberOrOptOut"
+    },
+    "fov_mm": {
+      "description": "Field of view as `[x, y, z]`, in millimetres (nominal/logical size; declared `oversampling` is divided out of the measured value before comparison). Up to 3 axes; a per-axis `none`/null leaves that axis unasserted. Default tolerance: rel 3% in-plane (x, y), rel 10% through-plane (z).",
+      "$ref": "#/$defs/numberVec3OrOptOut"
+    },
+    "matrix": {
+      "description": "Acquisition matrix as `[x, y, z]` (nominal/logical size; declared `oversampling` is divided out of the measured value before comparison). Up to 3 axes; a per-axis `none`/null leaves that axis unasserted. Default tolerance: exact.",
+      "$ref": "#/$defs/integerVec3OrOptOut"
+    },
+    "oversampling": {
+      "description": "Per-axis `[x, y, z]` oversampling factor, divided out of the measured geometry before comparison. Each provided axis must be a positive number. Up to 3 axes; absent / `none` / null means [1, 1, 1].",
+      "anyOf": [
+        {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        { "$ref": "#/$defs/optOut" }
+      ]
+    },
+    "scanner": {
+      "description": "Scanner profile stem selecting the hardware/safety limits (e.g. `ge-premier`, `generic-3t`). An input, not an asserted field — it produces no `spec.*` result. `none`/null opts out.",
+      "type": ["string", "null"]
+    },
+    "tolerances": {
+      "description": "Per-field tolerance overrides, keyed by the asserted `spec.*` field name (note the per-axis suffixes: `fov_mm_x`, `matrix_y`, ...). A field absent here uses its built-in default (see each field's description).",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/tolerance" },
+      "propertyNames": {
+        "enum": [
+          "te_ms",
+          "tr_ms",
+          "flip_angle_deg",
+          "n_slices",
+          "echo_spacing_ms",
+          "fov_mm_x",
+          "fov_mm_y",
+          "fov_mm_z",
+          "matrix_x",
+          "matrix_y",
+          "matrix_z"
+        ]
+      }
+    },
+    "name": {
+      "description": "Free-form sequence name. Ignored by the validator (never asserted)."
+    },
+    "acquisition": {
+      "description": "Free-form acquisition-description block. Ignored by the validator (never asserted)."
+    },
+    "notes": {
+      "description": "Free-form notes. Ignored by the validator (never asserted)."
+    }
+  },
+  "$defs": {
+    "optOut": {
+      "description": "Explicit opt-out: YAML null or the literal `none` (any case). The field parses but is not asserted.",
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[Nn][Oo][Nn][Ee]$" }
+      ]
+    },
+    "numberOrOptOut": {
+      "anyOf": [
+        { "type": "number" },
+        { "$ref": "#/$defs/optOut" }
+      ]
+    },
+    "integerOrOptOut": {
+      "anyOf": [
+        { "type": "integer" },
+        { "$ref": "#/$defs/optOut" }
+      ]
+    },
+    "numberVec3OrOptOut": {
+      "anyOf": [
+        {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/numberOrOptOut" }
+        },
+        { "$ref": "#/$defs/optOut" }
+      ]
+    },
+    "integerVec3OrOptOut": {
+      "anyOf": [
+        {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/integerOrOptOut" }
+        },
+        { "$ref": "#/$defs/optOut" }
+      ]
+    },
+    "tolerance": {
+      "description": "A per-field tolerance band: `exact` (strict equality), `{abs: <n>}` (absolute band in the field's own unit), or `{rel: <n>}` (fraction of |expected|, e.g. 0.05 = 5%).",
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[Ee][Xx][Aa][Cc][Tt]$",
+          "description": "Strict equality."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["abs"],
+          "properties": {
+            "abs": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Absolute band in the field's own unit."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rel"],
+          "properties": {
+            "rel": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Fraction of |expected| (e.g. 0.05 = 5%)."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

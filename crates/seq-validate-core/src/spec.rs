@@ -37,6 +37,12 @@ use serde_yaml::{Mapping, Value as Yaml};
 use crate::measurements::Measurements;
 use crate::result::CheckResult;
 
+/// The published JSON Schema for the `--spec` input (`schema/spec-v1.schema.json`),
+/// embedded so `seq-validate --emit-spec-schema` is self-contained. It mirrors the
+/// fields of [`Spec`] and [`default_tolerance`]; the `spec_schema` tests pin it
+/// (it compiles, and the bundled example spec validates against it).
+pub const SPEC_SCHEMA: &str = include_str!("../schema/spec-v1.schema.json");
+
 /// A per-field tolerance. `Abs` is an absolute band in the field's own unit,
 /// `Rel` a fraction of the expected magnitude, `Exact` strict equality (matrix
 /// counts and the slice count). Defaults are seeded from the reference
