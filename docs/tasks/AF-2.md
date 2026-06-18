@@ -5,7 +5,7 @@
 | **ID** | AF-2 |
 | **Priority** | P2 |
 | **Effort** | M |
-| **Status** | ☐ Not started |
+| **Status** | ☑ Done |
 | **Area** | Spec input contract · discoverability |
 
 > Part of the [agent-facing backlog](README.md). See the index for shared context.

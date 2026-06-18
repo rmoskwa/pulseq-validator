@@ -9,7 +9,12 @@
 //!
 //! ```text
 //! seq-validate <file.seq> [--json] [-v|--verbose] [--profile <name>] [--set field=value]... [--spec <spec.yaml>]
+//! seq-validate --emit-spec-schema | --emit-report-schema
 //! ```
+//!
+//! `--emit-spec-schema` / `--emit-report-schema` print the embedded JSON Schema
+//! for the `--spec` input / the `--json` report output and exit 0, so a harness
+//! can learn either contract from the binary alone (no `.seq` file required).
 //!
 //! `--profile` selects the scanner [`Profile`] for the hardware/safety checks;
 //! `--set field=value` overrides one of its limits (repeatable). With no
@@ -21,7 +26,7 @@
 //! the run exits nonzero if any asserted field is out of tolerance.
 
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::Parser;
@@ -32,9 +37,12 @@ use seq_validate_core::{Measurements, Profile, Report, Sequence, Spec, checks, p
 #[derive(Parser, Debug)]
 #[command(name = "seq-validate", version, about, long_about = None)]
 struct Cli {
-    /// The `.seq` file to validate.
-    #[arg(value_name = "FILE.seq")]
-    file: PathBuf,
+    /// The `.seq` file to validate. Optional only when emitting a schema.
+    #[arg(
+        value_name = "FILE.seq",
+        required_unless_present_any = ["emit_spec_schema", "emit_report_schema"]
+    )]
+    file: Option<PathBuf>,
 
     /// Emit the report as stable JSON instead of the human-readable form.
     #[arg(long)]
@@ -55,15 +63,42 @@ struct Cli {
     /// Expected-value spec for hard pass/fail: assert measured metrics against it.
     #[arg(long, value_name = "SPEC.yaml")]
     spec: Option<PathBuf>,
+
+    /// Print the `--spec` input JSON Schema (schema/spec-v1.schema.json) and exit 0.
+    #[arg(long)]
+    emit_spec_schema: bool,
+
+    /// Print the `--json` report JSON Schema (schema/report-v1.schema.json) and exit 0.
+    #[arg(long)]
+    emit_report_schema: bool,
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let file_label = cli.file.display().to_string();
+
+    // Schema-introspection flags: print the embedded JSON Schema and exit 0, so a
+    // harness can learn the input/output contract from the binary alone. These
+    // take no `.seq` file (enforced by `required_unless_present_any` on `file`).
+    if cli.emit_spec_schema {
+        print!("{}", seq_validate_core::SPEC_SCHEMA);
+        return ExitCode::SUCCESS;
+    }
+    if cli.emit_report_schema {
+        print!("{}", seq_validate_core::REPORT_SCHEMA);
+        return ExitCode::SUCCESS;
+    }
+
+    // clap guarantees `file` is present here (required unless an --emit flag);
+    // model the `None` arm explicitly to stay clear of unwrap/expect.
+    let Some(file) = cli.file.as_deref() else {
+        eprintln!("error: the <FILE.seq> argument is required");
+        return ExitCode::from(2);
+    };
+    let file_label = file.display().to_string();
 
     // Build one Report whatever happens (parse error, profile/spec error, or a
     // full run) so `--json` always emits the same schema.
-    let report = build_report(&cli, file_label);
+    let report = build_report(&cli, file, file_label);
 
     if cli.json {
         println!("{}", report.to_json());
@@ -79,8 +114,8 @@ fn main() -> ExitCode {
 /// Parse the sequence, the optional spec, resolve the profile, run the checks, and
 /// (when a spec is given) append the `spec.*` assertions. Any step that fails
 /// becomes a harness-error [`Report`] (exit 2) so the JSON schema is uniform.
-fn build_report(cli: &Cli, file_label: String) -> Report {
-    let seq = match Sequence::from_file(&cli.file) {
+fn build_report(cli: &Cli, file: &Path, file_label: String) -> Report {
+    let seq = match Sequence::from_file(file) {
         Ok(seq) => seq,
         Err(err) => return Report::harness_error(file_label, err.to_string()),
     };

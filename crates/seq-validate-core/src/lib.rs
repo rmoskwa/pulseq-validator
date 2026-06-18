@@ -45,9 +45,9 @@ pub use checks::{Check, CheckCtx};
 pub use measurements::{Geometry, Measurements};
 pub use profile::{Pns, Profile};
 pub use render::render;
-pub use report::{Report, SCHEMA_VERSION, SequenceMeta, Summary};
+pub use report::{REPORT_SCHEMA, Report, SCHEMA_VERSION, SequenceMeta, Summary};
 pub use result::{Category, CheckResult, Severity, Status};
-pub use spec::{Spec, Tolerance};
+pub use spec::{SPEC_SCHEMA, Spec, Tolerance};
 
 /// The parser crate, re-exported so consumers can reach the `raw` / `model` /
 /// `interp` layers directly when the IR isn't enough (debugging, round-trip).

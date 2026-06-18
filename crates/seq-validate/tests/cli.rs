@@ -73,6 +73,39 @@ fn json_report_includes_integrity_results() {
 }
 
 #[test]
+fn emit_spec_schema_prints_a_valid_schema_and_exits_zero() {
+    // The flag needs no FILE.seq; it prints the embedded spec-input schema and exits 0.
+    let (code, stdout, _) = run(&["--emit-spec-schema"]);
+    assert_eq!(code, 0, "emitting a schema exits 0: {stdout}");
+    let v: Value = serde_json::from_str(&stdout).expect("--emit-spec-schema prints valid JSON");
+    assert!(
+        v["$schema"].as_str().unwrap_or("").contains("json-schema"),
+        "carries a $schema dialect: {stdout}"
+    );
+    assert!(
+        v["title"].as_str().unwrap_or("").contains("spec"),
+        "is the spec schema: {stdout}"
+    );
+    // It describes the recognized fields an agent would author against.
+    assert!(v["properties"]["te_ms"].is_object(), "stdout: {stdout}");
+    assert!(
+        v["properties"]["tolerances"].is_object(),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn emit_report_schema_prints_a_valid_schema_and_exits_zero() {
+    let (code, stdout, _) = run(&["--emit-report-schema"]);
+    assert_eq!(code, 0, "emitting a schema exits 0: {stdout}");
+    let v: Value = serde_json::from_str(&stdout).expect("--emit-report-schema prints valid JSON");
+    assert_eq!(
+        v["properties"]["schema_version"]["const"], 1,
+        "is the report schema, pinned to v1: {stdout}"
+    );
+}
+
+#[test]
 fn missing_file_is_harness_error_exit_two() {
     let (code, _, _) = run(&["definitely-does-not-exist.seq"]);
     assert_eq!(code, 2, "a parse/IO failure is exit 2, not 1");

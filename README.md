@@ -84,7 +84,8 @@ check's structured `measured`/`expected` data inline.
 web consumers, who need no bindings. It conforms to the JSON Schema at
 [`crates/seq-validate-core/schema/report-v1.schema.json`](crates/seq-validate-core/schema/report-v1.schema.json);
 the `schema_version` field pins the contract and any breaking change bumps it. One
-shape covers both a successful validation and a parse/harness error.
+shape covers both a successful validation and a parse/harness error. The schema is
+embedded in the binary — `seq-validate --emit-report-schema` prints it and exits.
 
 ### Scanner profiles
 
@@ -124,6 +125,13 @@ oversampling: [2, 1, 1]        # readout oversampling, divided out before compar
 Per-field tolerances default to sensible bands and can be set as `abs`, `rel`, or
 `exact`. Geometry honors the dual-witness rule: each axis is asserted against
 whichever witness measured it.
+
+The spec input has its own published JSON Schema at
+[`crates/seq-validate-core/schema/spec-v1.schema.json`](crates/seq-validate-core/schema/spec-v1.schema.json)
+(field types, units, the `[x, y, z]` vectors, the `tolerances` shape, and the
+`none`/null opt-out). Like the report schema it is embedded in the binary —
+`seq-validate --emit-spec-schema` prints it and exits, so a harness can learn the
+spec format from the tool alone.
 
 ### Exit codes
 

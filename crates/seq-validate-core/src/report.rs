@@ -26,6 +26,11 @@ use crate::result::{CheckResult, Status};
 /// `schema/report-v1.schema.json`.
 pub const SCHEMA_VERSION: u32 = 1;
 
+/// The published JSON Schema for the `--json` report output
+/// (`schema/report-v1.schema.json`), embedded so `seq-validate
+/// --emit-report-schema` is self-contained. The `report_schema` tests pin it.
+pub const REPORT_SCHEMA: &str = include_str!("../schema/report-v1.schema.json");
+
 /// Parsed-sequence metadata surfaced alongside the check results. Drawn from the
 /// IR (`pulseq_version`, `name`) and parse stats (`blocks`, `duration_s`,
 /// interpreter `parse_warnings`).
