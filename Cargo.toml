@@ -27,3 +27,14 @@ expect_used      = "warn"
 panic            = "warn"
 indexing_slicing = "warn"
 # arithmetic_side_effects = "warn"
+
+# Distribution profile for the released binaries. Inherits `release` and strips
+# debug symbols so each shipped `seq-validate` is smaller (the default `release`
+# keeps `debuginfo`). Kept separate from `release` so local `cargo build
+# --release` still carries symbols for debugging/profiling; the release workflow
+# selects this profile (.github/workflows/release.yml → `profile: dist`). The
+# setting lives here, not as a CI env var, so the `cross`-built musl targets get
+# it too — the profile is read from the manifest inside the build container.
+[profile.dist]
+inherits = "release"
+strip = "symbols"

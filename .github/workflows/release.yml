@@ -62,12 +62,15 @@ jobs:
 
       # Builds `seq-validate` for the target (using cross for the musl targets),
       # packages it as $bin-$target.tar.gz (.zip on Windows) with a sha256
-      # sidecar, and attaches it to the release created above.
+      # sidecar, and attaches it to the release created above. Built with the
+      # `dist` profile (release + `strip = "symbols"`, see Cargo.toml) so the
+      # shipped binary carries no debug symbols.
       - name: Build and upload
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: seq-validate
           target: ${{ matrix.target }}
+          profile: dist
           include: README.md,LICENSE
           checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
