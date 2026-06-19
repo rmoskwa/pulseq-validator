@@ -76,6 +76,12 @@ pub struct BlockLabels {
     pub pmc: bool,
     /// `TRID` counter - marks the start (and identity) of a repeated seq part
     pub trid: i32,
+    /// `true` when a `TRID` label was *set on this block* - i.e. this block is a
+    /// segment start. Distinct from `trid`, which is the sticky counter value
+    /// carried forward from the most recent set; a block that merely inherits a
+    /// TRID has `trid_set == false`. Segment-boundary detection needs the
+    /// set-site, since a repeated segment re-applies the same `trid` value.
+    pub trid_set: bool,
 }
 
 /// tells if block should be measured only in the first or last repetition

@@ -141,6 +141,9 @@ pub enum Category {
     Trajectory,
     /// Hardware/safety limits against a scanner profile.
     Hardware,
+    /// Vendor-specific conformance: structural rules a vendor's interpreter
+    /// imposes that have no analogue on other platforms (e.g. GE TRID segments).
+    Vendor,
     /// Expected-spec assertions: measured metrics compared to a user spec.
     Spec,
     /// Anything whose id prefix is unrecognized.
@@ -154,6 +157,7 @@ impl Category {
         Category::Metrics,
         Category::Trajectory,
         Category::Hardware,
+        Category::Vendor,
         Category::Spec,
         Category::Other,
     ];
@@ -165,6 +169,7 @@ impl Category {
             Category::Metrics => "metrics",
             Category::Trajectory => "trajectory",
             Category::Hardware => "hardware",
+            Category::Vendor => "vendor",
             Category::Spec => "spec",
             Category::Other => "other",
         }
@@ -177,6 +182,7 @@ impl Category {
             Category::Metrics => "Derived metrics",
             Category::Trajectory => "K-space trajectory",
             Category::Hardware => "Hardware & safety",
+            Category::Vendor => "Vendor conformance",
             Category::Spec => "Spec assertions",
             Category::Other => "Other",
         }
@@ -190,6 +196,7 @@ impl Category {
             "metrics" => Category::Metrics,
             "trajectory" => Category::Trajectory,
             "hardware" => Category::Hardware,
+            "vendor" => Category::Vendor,
             "spec" => Category::Spec,
             _ => Category::Other,
         }

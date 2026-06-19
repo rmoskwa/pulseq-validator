@@ -115,10 +115,20 @@ pub fn convert(
             }
         }
 
-        // First pass: apply all LABELSETs.
+        // First pass: apply all LABELSETs. Track whether a TRID label is set on
+        // *this* block (a segment start), distinct from the sticky `trid` value.
+        let mut trid_set_here = false;
         for ext in &block.ext {
             if let model::Extension::LabelSet { flag, value } = ext {
                 label_state.apply_set(flag, *value, block.id)?;
+                if matches!(
+                    flag,
+                    model::extensions::ExtLabelFlag::Counter(
+                        model::extensions::ExtLabelCounter::Trid
+                    )
+                ) {
+                    trid_set_here = true;
+                }
             }
         }
         // Second pass: apply all LABELINCs.
@@ -127,6 +137,8 @@ pub fn convert(
                 label_state.apply_inc(counter, *value);
             }
         }
+        // `trid_set` is per-block (not sticky), so overwrite it every block.
+        label_state.block_labels.trid_set = trid_set_here;
 
         // Compute gradient transform for current block, starting with rot ext.
         // Default quaternion `[1, 0, 0, 0]` is the identity rotation; any
