@@ -395,7 +395,10 @@ fn emit_profile_resolves_aliases() {
 #[test]
 fn emit_profile_unknown_name_is_a_clear_error_exit_two() {
     let (code, _, stderr) = run(&["--emit-profile", "no-such-scanner"]);
-    assert_eq!(code, 2, "an unknown profile is an error, not a silent fallback");
+    assert_eq!(
+        code, 2,
+        "an unknown profile is an error, not a silent fallback"
+    );
     assert!(
         stderr.contains("unknown scanner profile"),
         "stderr names the bad profile: {stderr}"
