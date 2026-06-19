@@ -65,6 +65,18 @@ pub trait Check {
         vec![CheckDoc::new(self.id(), self.summary())]
     }
 
+    /// The scanner vendors this check applies to, by [`Profile::vendor`] tag
+    /// (e.g. `&["ge"]`). The default `&[]` means **vendor-agnostic** — the check
+    /// runs for every profile (and in file-only mode). A non-empty scope makes
+    /// the check vendor-specific: [`run_all`] only invokes it when the active
+    /// profile's vendor is listed, so a check encoding one vendor's structural
+    /// rule stays inert for every other vendor without each check repeating the
+    /// gate itself. The [`catalog`] still lists it regardless, so the whole check
+    /// space remains discoverable via `--list-checks`.
+    fn vendor_scope(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// Inspect the context and emit results.
     fn run(&self, ctx: &CheckCtx<'_>) -> Vec<CheckResult>;
 }
@@ -103,13 +115,24 @@ pub fn registry() -> Vec<Box<dyn Check>> {
     checks.extend(crate::metrics::checks());
     checks.extend(crate::trajectory::checks());
     checks.extend(crate::hardware::checks());
+    checks.extend(crate::vendor::checks());
     checks
 }
 
 /// Run every registered check against `ctx`, concatenating their results in
-/// registry order.
+/// registry order. A check with a non-empty [`vendor_scope`](Check::vendor_scope)
+/// runs only when the active profile's vendor is in its scope; with no profile,
+/// vendor-specific checks are skipped entirely (their vendor is unknown).
 pub fn run_all(ctx: &CheckCtx<'_>) -> Vec<CheckResult> {
-    registry().iter().flat_map(|check| check.run(ctx)).collect()
+    let vendor = ctx.profile.map(|p| p.vendor.as_str());
+    registry()
+        .iter()
+        .filter(|check| {
+            let scope = check.vendor_scope();
+            scope.is_empty() || vendor.is_some_and(|v| scope.contains(&v))
+        })
+        .flat_map(|check| check.run(ctx))
+        .collect()
 }
 
 /// The discoverable check catalog: one [`CheckDoc`] per result `id` the registry
