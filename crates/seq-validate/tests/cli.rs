@@ -367,6 +367,42 @@ fn list_profiles_enumerates_the_bundled_catalog() {
 }
 
 #[test]
+fn emit_profile_prints_full_limit_values_as_json() {
+    // Needs no .seq file; emits every numeric limit the build consumes, so the
+    // values can be sourced from the binary instead of a vendored YAML copy.
+    let (code, stdout, _) = run(&["--emit-profile", "ge-premier"]);
+    assert_eq!(code, 0, "stdout: {stdout}");
+    let v: Value = serde_json::from_str(&stdout).expect("--emit-profile is valid JSON");
+    assert_eq!(v["name"], "ge-premier");
+    assert_eq!(v["vendor"], "ge");
+    // The numbers the build writes into mr.opts come through verbatim.
+    assert_eq!(v["max_grad_mt_m"], 50.0, "json: {v}");
+    assert_eq!(v["max_slew_t_m_s"], 150.0, "json: {v}");
+    assert_eq!(v["grad_raster_s"], 4.0e-6, "json: {v}");
+    // The safety-only PNS model (no mr.opts equivalent) is present too.
+    assert_eq!(v["pns"]["rheobase"], 17.9, "json: {v}");
+}
+
+#[test]
+fn emit_profile_resolves_aliases() {
+    // An alias resolves to its canonical profile, same as --profile.
+    let (code, stdout, _) = run(&["--emit-profile", "default"]);
+    assert_eq!(code, 0);
+    let v: Value = serde_json::from_str(&stdout).expect("--emit-profile is valid JSON");
+    assert_eq!(v["name"], "generic-3t", "alias resolves to canonical name");
+}
+
+#[test]
+fn emit_profile_unknown_name_is_a_clear_error_exit_two() {
+    let (code, _, stderr) = run(&["--emit-profile", "no-such-scanner"]);
+    assert_eq!(code, 2, "an unknown profile is an error, not a silent fallback");
+    assert!(
+        stderr.contains("unknown scanner profile"),
+        "stderr names the bad profile: {stderr}"
+    );
+}
+
+#[test]
 fn list_checks_enumerates_the_catalog() {
     // Human form: needs no .seq file, grouped by category, names result ids.
     let (code, stdout, _) = run(&["--list-checks"]);

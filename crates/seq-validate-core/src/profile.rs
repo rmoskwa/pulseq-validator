@@ -26,7 +26,7 @@
 
 use std::sync::OnceLock;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ir::Sequence;
 
@@ -37,7 +37,7 @@ include!(concat!(env!("OUT_DIR"), "/profiles.rs"));
 /// PNS (peripheral-nerve-stimulation) coil parameters for the IEC 60601-2-33:2022
 /// nerve-impulse-response model (see `crate::hardware`). Only some profiles carry
 /// one (it is coil-specific); a profile without it `skip`s the PNS check.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pns {
     /// Chronaxie `τ_c` [s] — the nerve impulse-response time constant.
@@ -51,7 +51,7 @@ pub struct Pns {
 /// A scanner hardware/safety profile. Field units are SI-adjacent and match the
 /// limit's natural unit (mT/m, T/m/s, µT, seconds) so the numbers read like the
 /// scanner spec; the checks convert the interpreted IR (Hz/m, Hz) into these.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Profile {
     /// Resolution key (the `--profile` name); unique across bundled profiles.

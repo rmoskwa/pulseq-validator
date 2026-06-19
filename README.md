@@ -103,6 +103,7 @@ $ seq-validate scan.seq --verbose             # + each check's measured/expected
 $ seq-validate scan.seq --json                # stable JSON (see the schema below)
 $ seq-validate scan.seq --profile ge-premier  # + hardware/safety limits for a scanner
 $ seq-validate scan.seq --spec expected.yaml  # + hard pass/fail vs an expected spec
+$ seq-validate --emit-profile ge-premier      # one profile's full limit values as JSON (no .seq needed)
 ```
 
 The report groups results by category (integrity, metrics, trajectory, hardware,
@@ -133,9 +134,30 @@ An AI agent or harness driving the validator programmatically should start from
 
 `--profile <name>` selects a bundled scanner profile that supplies the hardware
 limits. List the available profiles with `seq-validate --list-profiles` (add
-`--json` for a machine-readable array). Each profile is one YAML file under
+`--json` for a machine-readable array of `{name, vendor, description, aliases}`).
+Each profile is one YAML file under
 [`crates/seq-validate-core/profiles/`](crates/seq-validate-core/profiles/), embedded
 into the binary at build time.
+
+`seq-validate --emit-profile <name>` prints that one profile's **full set of
+limit values** as JSON — peak gradient/slew/B1, the raster grid, dead times, and
+the PNS model — resolving names and aliases exactly like `--profile`. Where
+`--list-profiles` only enumerates the catalog, `--emit-profile` exposes the
+numbers the checks actually enforce, so a generator or build step can source its
+limits from the same embedded profile. An unknown name is an error (exit 2), never a silent fallback.
+
+```console
+$ seq-validate --emit-profile ge-premier
+{
+  "name": "ge-premier",
+  "vendor": "ge",
+  ...
+  "max_grad_mt_m": 50.0,
+  "max_slew_t_m_s": 150.0,
+  "grad_raster_s": 4e-6,
+  "pns": { "chronaxie_s": 0.0006424, "rheobase": 17.9, "alpha": 0.31 }
+}
+```
 
 `--set FIELD=VALUE` overrides a single limit (repeatable), e.g.
 `--set maxGrad=45`. With no `--profile`, no spec `scanner`, and no limits embedded

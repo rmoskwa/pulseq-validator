@@ -10,7 +10,13 @@
 //! ```text
 //! seq-validate <file.seq> [--json] [-v|--verbose] [--profile <name>] [--set field=value]... [--spec <spec.yaml>]
 //! seq-validate --emit-spec-schema | --emit-report-schema | --list-profiles | --list-checks [--json]
+//! seq-validate --emit-profile <name>
 //! ```
+//!
+//! `--emit-profile <name>` prints one bundled scanner profile's full limit
+//! values as JSON — every field the build step writes into `mr.opts(...)` plus
+//! the safety-only limits — so a generator can source its limits from the same
+//! embedded profile the hardware checks enforce, with no second copy to drift.
 //!
 //! `--emit-spec-schema` / `--emit-report-schema` print the embedded JSON Schema
 //! for the `--spec` input / the `--json` report output and exit 0, so a harness
@@ -44,7 +50,7 @@ struct Cli {
     /// The `.seq` file to validate. Optional only when emitting a schema.
     #[arg(
         value_name = "FILE.seq",
-        required_unless_present_any = ["emit_spec_schema", "emit_report_schema", "list_profiles", "list_checks"]
+        required_unless_present_any = ["emit_spec_schema", "emit_report_schema", "list_profiles", "list_checks", "emit_profile"]
     )]
     file: Option<PathBuf>,
 
@@ -80,6 +86,10 @@ struct Cli {
     #[arg(long)]
     list_profiles: bool,
 
+    /// Print one scanner profile's full limit values as JSON and exit 0 (resolves names + aliases like --profile).
+    #[arg(long, value_name = "NAME")]
+    emit_profile: Option<String>,
+
     /// List the check catalog (every result id + one-liner, by category) and exit 0 (add --json).
     #[arg(long)]
     list_checks: bool,
@@ -104,6 +114,21 @@ fn main() -> ExitCode {
     if cli.list_profiles {
         print!("{}", list_profiles(cli.json));
         return ExitCode::SUCCESS;
+    }
+    // Profile emission: print one profile's full limit values so the build step
+    // sources its `mr.opts` numbers from the same embedded profile the hardware
+    // checks enforce. An unknown name is an error (exit 2), not a silent fallback.
+    if let Some(name) = cli.emit_profile.as_deref() {
+        return match emit_profile(name) {
+            Ok(s) => {
+                print!("{s}");
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
     }
     // Check discovery: enumerate the result `id`s (and their one-liners) the engine
     // can emit, so an agent that sees a lone `id` can look up the whole catalog.
@@ -133,6 +158,28 @@ fn main() -> ExitCode {
     }
 
     ExitCode::from(report.exit_code() as u8)
+}
+
+/// Emit one scanner profile's full set of limit values as pretty JSON — every
+/// field the build step writes into `mr.opts(...)` plus the safety-only limits
+/// (`max_b1_ut`, `pns`) — so a generator's limits are sourced from the same
+/// embedded profile the hardware checks enforce, with no second copy to drift.
+/// Resolves `name` through [`Profile::by_name`] (so aliases like `generic` /
+/// `default` work); an unknown name is an `Err`, matching `--profile`'s
+/// non-silent policy. A non-finite limit (`max_b1_ut` = "no limit") serializes
+/// as JSON `null`, the same "unknown / no limit" sentinel the profile documents.
+fn emit_profile(name: &str) -> Result<String, String> {
+    use seq_validate_core::serde_json;
+    let profile = Profile::by_name(name).ok_or_else(|| {
+        format!(
+            "unknown scanner profile {name:?}; run `seq-validate --list-profiles` \
+             to see the available profiles"
+        )
+    })?;
+    let mut s = serde_json::to_string_pretty(&profile)
+        .map_err(|e| format!("serializing profile {name:?}: {e}"))?;
+    s.push('\n');
+    Ok(s)
 }
 
 /// Render the bundled scanner-profile catalog for `--list-profiles`: a JSON array
